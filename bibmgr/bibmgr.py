@@ -1,20 +1,58 @@
 import argparse
 import sys
+import pathlib
 import biblib.bib
+import configparser
 
 
 def main():
-    # TODO This is copy-pasted from the biblib examples
-    arg_parser = argparse.ArgumentParser(description='Parse .bib database(s)'
-                                         ' and print basic fields as text')
-    arg_parser.add_argument('bib', nargs='+', help='.bib file(s) to process',
-                            type=open)
-    args = arg_parser.parse_args()
+    parser = argparse.ArgumentParser(description='')
+    subparsers = parser.add_subparsers()
 
-    db = biblib.bib.Parser().parse(args.bib, log_fp=sys.stderr).get_entries()
+    # Shared arguments
+    parser.add_argument('-c', '--config', metavar='CONFIG', type=str,
+                        dest='config_path', default='', help='path to '
+                        'default configuration file (*.cfg)')
+    parser.add_argument('lib', metavar='LIBRARY', type=str, help='')
+    # Echo subcommand
+    echo_parser = subparsers.add_parser('echo')
+    echo_parser.set_defaults(func=echo)
+    # Org subcommand
+    org_parser = subparsers.add_parser('org')
+    org_parser.set_defaults(func=org)
 
-    breakpoint()
+    # Parse arguments
+    args = parser.parse_args()
 
-    for ent in db.values():
-        print(ent.to_bib())
-        print()
+    # Load and parse config files
+    cfg = configparser.ConfigParser()
+    cfg.read(args.config_path)
+
+    # Run subcommand
+    args.func(args, cfg)
+
+
+def echo(args, cfg):
+    lib_path = pathlib.Path(cfg[args.lib]['path'])
+    bib_path = lib_path.joinpath(f'{args.lib}.bib')
+
+    with open(bib_path, 'r') as bib:
+        db = biblib.bib.Parser().parse(bib, log_fp=sys.stderr).get_entries()
+    for entry in db.values():
+        print(entry.to_bib())
+
+
+def org(args, cfg):
+    lib_path = pathlib.Path(cfg[args.lib]['path'])
+    bib_path = lib_path.joinpath(f'{args.lib}.bib')
+
+    with open(bib_path, 'r') as bib:
+        db = biblib.bib.Parser().parse(bib, log_fp=sys.stderr).get_entries()
+    for entry in db.values():
+        group_path = lib_path.joinpath(entry['groups'])
+        try:
+            group_path.mkdir()
+            print(f'Created {group_path}')
+        except FileExistsError:
+            pass
+        # TODO Move files as needed

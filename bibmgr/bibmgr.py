@@ -35,57 +35,131 @@ def main():
         cfg = configparser.ConfigParser()
         cfg.read(args.cfg_path)
     else:
-        assert False  # TODO
+        raise FileNotFoundError(args.cfg_path)
+
+    # TODO make sure config and library are valid before continuing
 
     # Run subcommand
     args.func(args, cfg)
 
 
 def echo(args, cfg):
-    lib_path = pathlib.Path(cfg[args.lib]['path'])
-    bib_path = lib_path.joinpath(f'{args.lib}.bib')
-
-    with open(bib_path, 'r') as bib:
-        db = biblib.bib.Parser().parse(bib, log_fp=sys.stderr).get_entries()
+    _, bib_path, _ = _get_paths(args, cfg)
+    db = _open_bib_db(bib_path)
 
     for entry in db.values():
         print(entry.to_bib())
 
 
 def org(args, cfg):
-    lib_path = pathlib.Path(cfg[args.lib]['path'])
-    bib_path = lib_path.joinpath(f'{args.lib}.bib')
+    lib_path, bib_path, _ = _get_paths(args, cfg)
+    db = _open_bib_db(bib_path)
+    # Create new group folders
+    _create_missing_groups(lib_path, db)
+    # TODO Rename files according to metadata
+    # TODO Move files to correct groups
 
-    with open(bib_path, 'r') as bib:
-        db = biblib.bib.Parser().parse(bib, log_fp=sys.stderr).get_entries()
 
+def link(args, cfg):
+    lib_path, bib_path, bak_path = _get_paths(args, cfg)
+    db = _open_bib_db(bib_path)
+
+    # Make sure desired PDF exists
+    pdf_path = pathlib.Path(args.pdf)
+    if not pdf_path.exists():
+        raise FileNotFoundError(args.pdf)
+
+    # Set file field
+    db[args.key.lower()]['file'] = \
+        str(pdf_path.resolve().relative_to(lib_path))
+
+    _write_bib_file(lib_path, bib_path, bak_path, db)
+
+
+def _create_missing_groups(lib_path, db):
+    """"""
     for entry in db.values():
         group_path = lib_path.joinpath(entry['groups'])
         try:
             group_path.mkdir()
-            print(f'Created {group_path}')
         except FileExistsError:
-            pass
-        # TODO Move files as needed
+            pass  # Folder exists, dont need to do anything
 
 
-def link(args, cfg):
+def _rename_according_to_bib(db):
+    # for entry in db.values():
+    #     author = entry['author']
+    #     year = entry['year']
+    #     title = entry['title']
+    #     breakpoint()
+    pass
+
+
+def _move_according_to_bib(db):
+    pass
+
+
+def _get_paths(args, cfg):
+    """Extracts library and BibTeX file paths from arguments and configuration
+    file.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Command line arguments (from argparse).
+    cfg : configparser.ConfigParser
+        Parsed configuration file (from configparser).
+
+    Returns
+    -------
+    tuple
+        Library base path, BibTeX file path, and BibTeX file backup paths,
+        all of type pathlib.Path (from pathlib).
+    """
     lib_path = pathlib.Path(cfg[args.lib]['path'])
     bib_path = lib_path.joinpath(f'{args.lib}.bib')
     bak_path = lib_path.joinpath(f'{args.lib}.bib.bak')
+    return lib_path, bib_path, bak_path
 
+
+def _open_bib_db(bib_path):
+    """Opens BibTeX file and returns biblib dictionary.
+
+    Parameters
+    ----------
+    bib_path : pathlib.Path
+        Path of BibTeX file.
+
+    Returns
+    -------
+    collections.OrderedDict
+        BibTeX dictionary (from biblib).
+    """
     with open(bib_path, 'r') as bib:
         db = biblib.bib.Parser().parse(bib, log_fp=sys.stderr).get_entries()
+    return db
 
-    pdf_path = pathlib.Path(args.pdf)
-    if pdf_path.exists():
-        pass
-    else:
-        assert False  # TODO
 
-    db[args.key]['file'] = str(pdf_path.resolve().relative_to(lib_path))
+def _write_bib_file(lib_path, bib_path, bak_path, db):
+    """Writes BibTeX dictionary to file.
 
-    bib_path.rename(bak_path)
+    Parameters
+    ----------
+    lib_path : pathlib.Path
+        Base path of library.
+    bib_path : pathlib.Path
+        Path of BibTeX file.
+    bak_path : pathlib.Path
+        Path of BibTeX backup file.
+    db : collections.OrderedDict
+        BibTeX dictionary to write (from biblib).
+    """
+    # Delete .bak file if it exists
+    bak_path.unlink(missing_ok=True)
+    # Rename .bib file to .bib.bak
+    if bib_path.exists():
+        bib_path.rename(bak_path)
+    # Write new .bib file
     with open(bib_path, 'a') as bib:
         for entry in db.values():
             bib.write(entry.to_bib())

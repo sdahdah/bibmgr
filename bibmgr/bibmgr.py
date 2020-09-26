@@ -2,7 +2,10 @@ import argparse
 import sys
 import pathlib
 import biblib.bib
+import biblib.algo
 import configparser
+import string
+import shutil
 
 
 def main():
@@ -35,6 +38,7 @@ def main():
         cfg = configparser.ConfigParser()
         cfg.read(args.cfg_path)
     else:
+        # TODO Get rid of exception
         raise FileNotFoundError(args.cfg_path)
 
     # TODO make sure config and library are valid before continuing
@@ -52,12 +56,16 @@ def echo(args, cfg):
 
 
 def org(args, cfg):
-    lib_path, bib_path, _ = _get_paths(args, cfg)
+    lib_path, bib_path, bak_path = _get_paths(args, cfg)
     db = _open_bib_db(bib_path)
     # Create new group folders
     _create_missing_groups(lib_path, db)
     # TODO Rename files according to metadata
+    _rename_according_to_bib(lib_path, db,
+                             cfg.getint('config', 'max_file_name_length'))
     # TODO Move files to correct groups
+    # Write new bib file
+    _write_bib_file(lib_path, bib_path, bak_path, db)
 
 
 def link(args, cfg):
@@ -67,6 +75,7 @@ def link(args, cfg):
     # Make sure desired PDF exists
     pdf_path = pathlib.Path(args.pdf)
     if not pdf_path.exists():
+        # TODO Get rid of exception
         raise FileNotFoundError(args.pdf)
 
     # Set file field
@@ -86,16 +95,35 @@ def _create_missing_groups(lib_path, db):
             pass  # Folder exists, dont need to do anything
 
 
-def _rename_according_to_bib(db):
-    # for entry in db.values():
-    #     author = entry['author']
-    #     year = entry['year']
-    #     title = entry['title']
-    #     breakpoint()
-    pass
+def _rename_according_to_bib(lib_path, db, max_file_name_length):
+    """"""
+    for key, entry in zip(db.keys(), db.values()):
+        # Take last name of first author
+        name = _clean_string(
+            biblib.algo.parse_names(entry['author'])[0].last)
+        year = _clean_string(entry['year'])
+        title = _clean_string(entry['title'])
+        filename = (name + '_' + year + '_' + title)[:max_file_name_length]
+        if filename == '':
+            # TODO Get rid of exception
+            raise RuntimeError(f"New file name for key '{key}' is empty, "
+                               f"cannot rename.")
+        pdf_path = lib_path.joinpath(entry['file'])
+        new_path = pdf_path.parent.joinpath(filename + '.pdf')
+        shutil.move(pdf_path, new_path)
+        entry['file'] = str(new_path.resolve().relative_to(lib_path))
+
+
+def _clean_string(s):
+    """"""
+    valid = string.ascii_lowercase + string.digits + '_'
+    s_nospace = s.lower().replace(' ', '_')
+    s_clean = ''.join(char for char in s_nospace if char in valid)
+    return s_clean
 
 
 def _move_according_to_bib(db):
+    """"""
     pass
 
 

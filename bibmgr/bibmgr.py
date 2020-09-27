@@ -61,11 +61,10 @@ def org(args, cfg):
     # Create new group folders
     _create_missing_groups(lib_path, db)
     # TODO Rename files according to metadata
-    _rename_according_to_bib(lib_path, db,
+    _rename_according_to_bib(lib_path, bib_path, bak_path, db,
                              cfg.getint('config', 'max_file_name_length'))
     # TODO Move files to correct groups
     # Write new bib file
-    _write_bib_file(lib_path, bib_path, bak_path, db)
 
 
 def link(args, cfg):
@@ -78,6 +77,7 @@ def link(args, cfg):
         # TODO Get rid of exception
         raise FileNotFoundError(args.pdf)
 
+    # TODO Use relative path if within library and absolute path otherwise
     # Set file field
     db[args.key.lower()]['file'] = \
         str(pdf_path.resolve().relative_to(lib_path))
@@ -95,7 +95,8 @@ def _create_missing_groups(lib_path, db):
             pass  # Folder exists, dont need to do anything
 
 
-def _rename_according_to_bib(lib_path, db, max_file_name_length):
+def _rename_according_to_bib(lib_path, bib_path, bak_path, db,
+                             max_file_name_length):
     """"""
     for key, entry in zip(db.keys(), db.values()):
         # Take last name of first author
@@ -112,6 +113,7 @@ def _rename_according_to_bib(lib_path, db, max_file_name_length):
         new_path = pdf_path.parent.joinpath(filename + '.pdf')
         shutil.move(pdf_path, new_path)
         entry['file'] = str(new_path.resolve().relative_to(lib_path))
+    _write_bib_file(lib_path, bib_path, bak_path, db)
 
 
 def _clean_string(s):

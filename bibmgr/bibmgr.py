@@ -37,7 +37,8 @@ def main():
                         dest='cfg_path', default=default_cfg_path,
                         help='path to default configuration file (*.cfg)')
     parser.add_argument('-l', '--library', metavar='LIBRARY', type=str,
-                        dest='lib', default='', help='Name of library to use')
+                        dest='lib', default=None,
+                        help='Name of library to use')
     # Echo subcommand
     echo_parser = subparsers.add_parser('echo', help='Print BibTeX file.')
     echo_parser.set_defaults(func=echo)
@@ -53,8 +54,6 @@ def main():
     # Parse arguments
     args = parser.parse_args()
 
-    breakpoint()
-
     # Load and parse config files
     if pathlib.Path(args.cfg_path).exists():
         cfg = configparser.ConfigParser()
@@ -62,7 +61,17 @@ def main():
     else:
         raise FileNotFoundError(args.cfg_path)
 
-    lib = Library(cfg[args.lib]['path'], cfg.getint('config', 'filename_len'))
+    # Choose library if none is specified
+    if args.lib is None:
+        for section in cfg.keys():
+            if 'path' in cfg[section].keys():
+                selected_lib = section
+                break
+    else:
+        selected_lib = args.lib
+
+    lib = Library(cfg[selected_lib]['path'],
+                  cfg.getint('config', 'filename_len'))
 
     # Run subcommand
     args.func(lib, args)

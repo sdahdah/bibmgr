@@ -4,6 +4,7 @@ TODO
 - Get rid of exceptions
 """
 
+import os
 import argparse
 import sys
 import pathlib
@@ -15,29 +16,44 @@ import shutil
 
 
 def main():
+    # Figure out config path using environment variables
+    if os.name == 'posix':
+        xdg_config_home_raw = os.environ.get('XDG_CONFIG_HOME')
+        if xdg_config_home_raw is None:
+            home = pathlib.Path(os.environ.get('HOME'))
+            xdg_config_home = home.joinpath('.config')
+        else:
+            xdg_config_home = pathlib.Path(xdg_config_home_raw)
+        default_cfg_path = xdg_config_home.joinpath('bibmgr/bibmgr.cfg')
+    else:
+        # If on Windows, must specify manually for now
+        default_cfg_path = ''
+
     parser = argparse.ArgumentParser(description='')
     subparsers = parser.add_subparsers()
 
     # Shared arguments
     parser.add_argument('-c', '--config', metavar='CONFIG', type=str,
-                        dest='cfg_path', default='', help='path to '
-                        'default configuration file (*.cfg)')
+                        dest='cfg_path', default=default_cfg_path,
+                        help='path to default configuration file (*.cfg)')
     parser.add_argument('-l', '--library', metavar='LIBRARY', type=str,
                         dest='lib', default='', help='Name of library to use')
     # Echo subcommand
-    echo_parser = subparsers.add_parser('echo')
+    echo_parser = subparsers.add_parser('echo', help='Print BibTeX file.')
     echo_parser.set_defaults(func=echo)
     # Org subcommand
-    org_parser = subparsers.add_parser('org')
+    org_parser = subparsers.add_parser('org', help='')
     org_parser.set_defaults(func=org)
     # Link subcommand
-    link_parser = subparsers.add_parser('link')
+    link_parser = subparsers.add_parser('link', help='')
     link_parser.add_argument('key', metavar='KEY', type=str, help='')
     link_parser.add_argument('pdf', metavar='PDF', type=str, help='')
     link_parser.set_defaults(func=link)
 
     # Parse arguments
     args = parser.parse_args()
+
+    breakpoint()
 
     # Load and parse config files
     if pathlib.Path(args.cfg_path).exists():
@@ -55,7 +71,7 @@ def main():
 def echo(lib, args):
     lib.open_bib_db()
     for entry in lib.db.values():
-        print(entry.to_bib())
+        print(entry.to_bib(), end='\n\n')
 
 
 def org(lib, args):

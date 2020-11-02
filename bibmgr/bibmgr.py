@@ -77,12 +77,24 @@ def link(args, cfg):
         # TODO Get rid of exception
         raise FileNotFoundError(args.pdf)
 
-    # TODO Use relative path if within library and absolute path otherwise
-    # Set file field
-    db[args.key.lower()]['file'] = \
-        str(pdf_path.resolve().relative_to(lib_path))
+    # TODO Update to is_relative_to once 3.9 is a thing
+    # Set file field. Ise relative path if the pdf is within the library.
+    # Otherwise, use the absolute path.
+    try:
+        db[args.key.lower()]['file'] = \
+            str(pdf_path.resolve().relative_to(lib_path))
+    except ValueError:
+        db[args.key.lower()]['file'] = \
+            str(pdf_path.resolve())
 
     _write_bib_file(lib_path, bib_path, bak_path, db)
+
+# TODO Move some arg/cmd shenanigans here
+# class Library:
+
+#     def __init__(self, lib_path, max_filename_len):
+#         self.lib_path = lib_path
+#         self.max_filename_len = max_filename_len
 
 
 def _create_missing_groups(lib_path, db):
@@ -92,7 +104,7 @@ def _create_missing_groups(lib_path, db):
         try:
             group_path.mkdir()
         except FileExistsError:
-            pass  # Folder exists, dont need to do anything
+            pass  # Folder exists, don't need to do anything
 
 
 def _rename_according_to_bib(lib_path, bib_path, bak_path, db,
@@ -110,9 +122,13 @@ def _rename_according_to_bib(lib_path, bib_path, bak_path, db,
             raise RuntimeError(f"New file name for key '{key}' is empty, "
                                f"cannot rename.")
         pdf_path = lib_path.joinpath(entry['file'])
-        new_path = pdf_path.parent.joinpath(filename + '.pdf')
+        ext = ''.join(pdf_path.suffixes)
+        new_path = pdf_path.parent.joinpath(filename + ext)
         shutil.move(pdf_path, new_path)
-        entry['file'] = str(new_path.resolve().relative_to(lib_path))
+        try:
+            entry['file'] = str(new_path.resolve().relative_to(lib_path))
+        except ValueError:
+            entry['file'] = str(new_path.resolve())
     _write_bib_file(lib_path, bib_path, bak_path, db)
 
 

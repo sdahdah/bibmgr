@@ -1,3 +1,9 @@
+"""
+TODO
+----
+- Get rid of exceptions
+"""
+
 import argparse
 import sys
 import pathlib
@@ -38,174 +44,117 @@ def main():
         cfg = configparser.ConfigParser()
         cfg.read(args.cfg_path)
     else:
-        # TODO Get rid of exception
         raise FileNotFoundError(args.cfg_path)
 
-    # TODO make sure config and library are valid before continuing
+    lib = Library(cfg[args.lib]['path'], cfg.getint('config', 'filename_len'))
 
     # Run subcommand
-    args.func(args, cfg)
+    args.func(lib, args)
 
 
-def echo(args, cfg):
-    _, bib_path, _ = _get_paths(args, cfg)
-    db = _open_bib_db(bib_path)
-
-    for entry in db.values():
+def echo(lib, args):
+    lib.open_bib_db()
+    for entry in lib.db.values():
         print(entry.to_bib())
 
 
-def org(args, cfg):
-    lib_path, bib_path, bak_path = _get_paths(args, cfg)
-    db = _open_bib_db(bib_path)
+def org(lib, args):
+    lib.open_bib_db()
     # Create new group folders
-    _create_missing_groups(lib_path, db)
+    lib.create_missing_groups()
     # TODO Rename files according to metadata
-    _rename_according_to_bib(lib_path, bib_path, bak_path, db,
-                             cfg.getint('config', 'max_file_name_length'))
+    lib.rename_according_to_bib()
     # TODO Move files to correct groups
     # Write new bib file
+    lib.write_bib_file()
 
 
-def link(args, cfg):
-    lib_path, bib_path, bak_path = _get_paths(args, cfg)
-    db = _open_bib_db(bib_path)
-
-    # Make sure desired PDF exists
-    pdf_path = pathlib.Path(args.pdf)
-    if not pdf_path.exists():
-        # TODO Get rid of exception
-        raise FileNotFoundError(args.pdf)
-
-    # TODO Update to is_relative_to once 3.9 is a thing
-    # Set file field. Ise relative path if the pdf is within the library.
-    # Otherwise, use the absolute path.
-    try:
-        db[args.key.lower()]['file'] = \
-            str(pdf_path.resolve().relative_to(lib_path))
-    except ValueError:
-        db[args.key.lower()]['file'] = \
-            str(pdf_path.resolve())
-
-    _write_bib_file(lib_path, bib_path, bak_path, db)
-
-# TODO Move some arg/cmd shenanigans here
-# class Library:
-
-#     def __init__(self, lib_path, max_filename_len):
-#         self.lib_path = lib_path
-#         self.max_filename_len = max_filename_len
+def link(lib, args):
+    lib.open_bib_db()
+    lib.link_file(args.pdf, args.key)
+    lib.write_bib_file()
 
 
-def _create_missing_groups(lib_path, db):
-    """"""
-    for entry in db.values():
-        group_path = lib_path.joinpath(entry['groups'])
+class Library:
+
+    def __init__(self, lib_path, filename_len):
+        self.lib_path = pathlib.Path(lib_path)
+        self.bib_path = self.lib_path.joinpath(f'{self.lib_path.stem}.bib')
+        self.bak_path = self.lib_path.joinpath(f'{self.lib_path.stem}.bib.bak')
+        self.filename_len = filename_len
+        self.db = None
+
+    def create_missing_groups(self):
+        for entry in self.db.values():
+            group_path = self.lib_path.joinpath(entry['groups'])
+            try:
+                group_path.mkdir()
+            except FileExistsError:
+                pass  # Folder exists, don't need to do anything
+
+    def rename_according_to_bib(self):
+        for key, entry in zip(self.db.keys(), self.db.values()):
+            # Take last name of first author
+            name = _clean_string(
+                biblib.algo.parse_names(entry['author'])[0].last)
+            year = _clean_string(entry['year'])
+            title = _clean_string(entry['title'])
+            filename = (name + '_' + year + '_' + title)[:self.filename_len]
+            if filename == '':
+                raise RuntimeError(f"New file name for key '{key}' is empty, "
+                                   f"cannot rename.")
+            pdf_path = self.lib_path.joinpath(entry['file'])
+            ext = ''.join(pdf_path.suffixes)
+            new_path = pdf_path.parent.joinpath(filename + ext)
+            shutil.move(pdf_path, new_path)
+            entry['file'] = self.path_relative_to_lib(new_path)
+
+    def move_according_to_bib(self):
+        pass
+
+    def link_file(self, key, pdf):
+        # Make sure desired PDF exists
+        pdf_path = pathlib.Path(pdf)
+        if not pdf_path.exists():
+            raise FileNotFoundError(pdf)
+
+        self.db[key.lower()]['file'] = self.path_relative_to_lib(pdf_path)
+
+    def open_bib_db(self):
+        """Opens and reads contents of BibTeX file.
+
+        Parameters
+        ----------
+        bib_path : pathlib.Path
+            Path of BibTeX file.
+        """
+        with open(self.bib_path, 'r') as bib:
+            self.db = biblib.bib.Parser().parse(bib).get_entries()
+
+    def write_bib_file(self):
+        """Writes BibTeX dictionary to file.
+        """
+        # Delete .bak file if it exists
+        self.bak_path.unlink(missing_ok=True)
+        # Rename .bib file to .bib.bak
+        if self.bib_path.exists():
+            self.bib_path.rename(self.bak_path)
+        # Write new .bib file
+        with open(self.bib_path, 'a') as bib:
+            for entry in self.db.values():
+                bib.write(entry.to_bib())
+                bib.write('\n\n')
+
+    def path_relative_to_lib(self, path):
+        # TODO Update to is_relative_to once 3.9 is a thing
         try:
-            group_path.mkdir()
-        except FileExistsError:
-            pass  # Folder exists, don't need to do anything
-
-
-def _rename_according_to_bib(lib_path, bib_path, bak_path, db,
-                             max_file_name_length):
-    """"""
-    for key, entry in zip(db.keys(), db.values()):
-        # Take last name of first author
-        name = _clean_string(
-            biblib.algo.parse_names(entry['author'])[0].last)
-        year = _clean_string(entry['year'])
-        title = _clean_string(entry['title'])
-        filename = (name + '_' + year + '_' + title)[:max_file_name_length]
-        if filename == '':
-            # TODO Get rid of exception
-            raise RuntimeError(f"New file name for key '{key}' is empty, "
-                               f"cannot rename.")
-        pdf_path = lib_path.joinpath(entry['file'])
-        ext = ''.join(pdf_path.suffixes)
-        new_path = pdf_path.parent.joinpath(filename + ext)
-        shutil.move(pdf_path, new_path)
-        try:
-            entry['file'] = str(new_path.resolve().relative_to(lib_path))
+            return str(path.resolve().relative_to(self.lib_path))
         except ValueError:
-            entry['file'] = str(new_path.resolve())
-    _write_bib_file(lib_path, bib_path, bak_path, db)
+            return str(path.resolve())
 
 
 def _clean_string(s):
-    """"""
     valid = string.ascii_lowercase + string.digits + '_'
     s_nospace = s.lower().replace(' ', '_')
     s_clean = ''.join(char for char in s_nospace if char in valid)
     return s_clean
-
-
-def _move_according_to_bib(db):
-    """"""
-    pass
-
-
-def _get_paths(args, cfg):
-    """Extracts library and BibTeX file paths from arguments and configuration
-    file.
-
-    Parameters
-    ----------
-    args : argparse.Namespace
-        Command line arguments (from argparse).
-    cfg : configparser.ConfigParser
-        Parsed configuration file (from configparser).
-
-    Returns
-    -------
-    tuple
-        Library base path, BibTeX file path, and BibTeX file backup paths,
-        all of type pathlib.Path (from pathlib).
-    """
-    lib_path = pathlib.Path(cfg[args.lib]['path'])
-    bib_path = lib_path.joinpath(f'{args.lib}.bib')
-    bak_path = lib_path.joinpath(f'{args.lib}.bib.bak')
-    return lib_path, bib_path, bak_path
-
-
-def _open_bib_db(bib_path):
-    """Opens BibTeX file and returns biblib dictionary.
-
-    Parameters
-    ----------
-    bib_path : pathlib.Path
-        Path of BibTeX file.
-
-    Returns
-    -------
-    collections.OrderedDict
-        BibTeX dictionary (from biblib).
-    """
-    with open(bib_path, 'r') as bib:
-        db = biblib.bib.Parser().parse(bib, log_fp=sys.stderr).get_entries()
-    return db
-
-
-def _write_bib_file(lib_path, bib_path, bak_path, db):
-    """Writes BibTeX dictionary to file.
-
-    Parameters
-    ----------
-    lib_path : pathlib.Path
-        Base path of library.
-    bib_path : pathlib.Path
-        Path of BibTeX file.
-    bak_path : pathlib.Path
-        Path of BibTeX backup file.
-    db : collections.OrderedDict
-        BibTeX dictionary to write (from biblib).
-    """
-    # Delete .bak file if it exists
-    bak_path.unlink(missing_ok=True)
-    # Rename .bib file to .bib.bak
-    if bib_path.exists():
-        bib_path.rename(bak_path)
-    # Write new .bib file
-    with open(bib_path, 'a') as bib:
-        for entry in db.values():
-            bib.write(entry.to_bib())

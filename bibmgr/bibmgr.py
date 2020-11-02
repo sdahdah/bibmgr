@@ -7,6 +7,7 @@ import biblib.algo
 import configparser
 import string
 import shutil
+import collections
 
 
 def main():
@@ -65,7 +66,8 @@ def main():
         selected_lib = args.lib
 
     lib = Library(cfg[selected_lib]['path'],
-                  cfg.getint('config', 'filename_len'))
+                  cfg.getint('config', 'filename_len'),
+                  cfg.getint('config', 'key_len'))
 
     # Run subcommand
     args.func(lib, args)
@@ -85,6 +87,8 @@ def org(lib, args):
     lib.rename_according_to_bib()
     # Move files to correct groups
     lib.move_according_to_bib()
+    # Update keys according to metadata
+    # lib.rekey_according_to_bib()  # TODO Re-enable
     # Write new bib file
     lib.write_bib_file()
 
@@ -97,11 +101,12 @@ def link(lib, args):
 
 class Library:
 
-    def __init__(self, lib_path, filename_len):
+    def __init__(self, lib_path, filename_len, key_len):
         self.lib_path = pathlib.Path(lib_path)
         self.bib_path = self.lib_path.joinpath(f'{self.lib_path.stem}.bib')
         self.bak_path = self.lib_path.joinpath(f'{self.lib_path.stem}.bib.bak')
         self.filename_len = filename_len
+        self.key_len = key_len
         self.db = None
 
     def create_missing_groups(self):
@@ -137,6 +142,25 @@ class Library:
                 self.lib_path.joinpath(entry['groups']).joinpath(pdf_path.name)
             shutil.move(pdf_path, new_path)
             entry['file'] = str(self.format_relative_path(new_path))
+
+    # def rekey_according_to_bib(self):
+    #     new_db = collections.OrderedDict()
+    #     for key, entry in zip(self.db.keys(), self.db.values()):
+    #         # Take last name of first author
+    #         name = _clean_string(
+    #             biblib.algo.parse_names(entry['author'])[0].last)
+    #         year = _clean_string(entry['year'])
+    #         title = _clean_string(entry['title'].split(' ')[0])
+    #         new_key = (name + '_' + year + '_' + title)[:self.key_len]
+    #         # TODO Fine-tune this behaviour
+    #         if new_key == '':
+    #             continue
+    #         # TODO Fine-tune this behaviour too
+    #         while new_key in new_db.keys():
+    #             new_key += '_dup'
+    #         entry.key = new_key  # TODO ???
+    #         new_db[new_key] = entry
+    #     self.db = new_db
 
     def link_file(self, key, pdf):
         # Make sure desired PDF exists

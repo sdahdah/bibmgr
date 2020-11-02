@@ -62,9 +62,10 @@ def org(lib, args):
     lib.open_bib_db()
     # Create new group folders
     lib.create_missing_groups()
-    # TODO Rename files according to metadata
+    # Rename files according to metadata
     lib.rename_according_to_bib()
-    # TODO Move files to correct groups
+    # Move files to correct groups
+    lib.move_according_to_bib()
     # Write new bib file
     lib.write_bib_file()
 
@@ -103,14 +104,20 @@ class Library:
             if filename == '':
                 raise RuntimeError(f"New file name for key '{key}' is empty, "
                                    f"cannot rename.")
-            pdf_path = self.lib_path.joinpath(entry['file'])
+            pdf_path = \
+                self.lib_path.joinpath(self.read_relative_path(entry['file']))
             ext = ''.join(pdf_path.suffixes)
             new_path = pdf_path.parent.joinpath(filename + ext)
             shutil.move(pdf_path, new_path)
-            entry['file'] = self.path_relative_to_lib(new_path)
+            entry['file'] = str(self.format_relative_path(new_path))
 
     def move_according_to_bib(self):
-        pass
+        for key, entry in zip(self.db.keys(), self.db.values()):
+            pdf_path = self.read_relative_path(entry['file'])
+            new_path = \
+                self.lib_path.joinpath(entry['groups']).joinpath(pdf_path.name)
+            shutil.move(pdf_path, new_path)
+            entry['file'] = str(self.format_relative_path(new_path))
 
     def link_file(self, key, pdf):
         # Make sure desired PDF exists
@@ -118,7 +125,7 @@ class Library:
         if not pdf_path.exists():
             raise FileNotFoundError(pdf)
 
-        self.db[key.lower()]['file'] = self.path_relative_to_lib(pdf_path)
+        self.db[key.lower()]['file'] = str(self.format_relative_path(pdf_path))
 
     def open_bib_db(self):
         """Opens and reads contents of BibTeX file.
@@ -145,12 +152,18 @@ class Library:
                 bib.write(entry.to_bib())
                 bib.write('\n\n')
 
-    def path_relative_to_lib(self, path):
+    def format_relative_path(self, path):
         # TODO Update to is_relative_to once 3.9 is a thing
         try:
-            return str(path.resolve().relative_to(self.lib_path))
+            return path.resolve().relative_to(self.lib_path)
         except ValueError:
-            return str(path.resolve())
+            return path.resolve()
+
+    def read_relative_path(self, path):
+        try:
+            return pathlib.Path(path).resolve(strict=True)
+        except FileNotFoundError:
+            return self.lib_path.joinpath(path)
 
 
 def _clean_string(s):

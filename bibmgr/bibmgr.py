@@ -1,9 +1,3 @@
-"""
-TODO
-----
-- Get rid of exceptions
-"""
-
 import os
 import argparse
 import sys

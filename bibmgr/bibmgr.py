@@ -118,14 +118,7 @@ def org(lib, args):
 
 def link(lib, args):
     lib.open_bib_db()
-    # Make sure desired PDF exists
-    # TODO Also check that it's a file not a directory
-    # TODO MOVE THIS
-    pdf_path = pathlib.Path(args.pdf)
-    if not pdf_path.exists():
-        raise FileNotFoundError(args.pdf)
-    # Link file with filename as default key
-    lib.link_file(pdf_path, pdf_path.stem if args.key is None else args.key)
+    lib.link_file(args.pdf, args.key)
     lib.write_bib_file()
 
 
@@ -216,16 +209,27 @@ class Library:
             new_db[new_key] = entry
         self.db = new_db
 
-    def link_file(self, pdf_path, key):
-        if key.lower() in self.db:
-            self.db[key.lower()]['file'] = str(pdf_path.resolve())
+    def link_file(self, pdf, key=None):
+        # Read path and set default key
+        pdf_path = pathlib.Path(pdf)
+        if key is None:
+            key = pdf_path.stem
+        # Check validity of PDF path, then link if valid.
+        if not pdf_path.exists():
+            logging.warning(f'{pdf_path} does not exist. Not linking.')
+        elif not pdf_path.is_file():
+            logging.warning(f'{pdf_path} is not a file. Not linking.')
         else:
-            self.db[key.lower()] = biblib.bib.Entry(
-                [('file', str(pdf_path.resolve()))], key=key.lower(),
-                typ='misc')
+            if key.lower() in self.db:
+                self.db[key.lower()]['file'] = str(pdf_path.resolve())
+            else:
+                self.db[key.lower()] = biblib.bib.Entry(
+                    [('file', str(pdf_path.resolve()))], key=key.lower(),
+                    typ='misc')
 
     def open_bib_db(self):
         """Opens and reads contents of BibTeX file."""
+        logging.info(f'Opening `{self.bibtex_file}`.')
         with open(self.bibtex_file, 'r') as bib:
             self.db = biblib.bib.Parser().parse(bib).get_entries()
 

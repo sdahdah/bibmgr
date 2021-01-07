@@ -4,6 +4,7 @@ Reference management tools for BibTeX
 
 # To Do
 
-- [ ] Allow linking to new key
-- [ ] Rename keys from metadata
+- [x] Allow linking to new key
+- [x] Rename keys from metadata
 - [ ] Handle exceptions gracefully
+- [ ] Add dependencies inside `setup.py`

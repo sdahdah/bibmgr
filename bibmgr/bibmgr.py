@@ -1,4 +1,5 @@
 import os
+import sys
 import argparse
 import pathlib
 import biblib.bib
@@ -7,7 +8,7 @@ import configparser
 import string
 import shutil
 import collections
-import termcolor
+import logging
 
 
 def main():
@@ -21,12 +22,11 @@ def main():
             xdg_config_home = pathlib.Path(xdg_config_home_raw)
         default_conf_path = xdg_config_home.joinpath('bibmgr/bibmgr.conf')
     else:
-        # If on Windows, must specify manually for now
-        default_conf_path = ''
+        # TODO Windows is untested...
+        localappdata = pathlib.Path(os.environ.get('LOCALAPPDATA'))
+        default_conf_path = localappdata.joinpath('bibmgr/bibmgr.conf')
 
     # TODO Figure out help and prog
-    # TODO Add dry run
-
     parser = argparse.ArgumentParser(description='')
     subparsers = parser.add_subparsers()
 
@@ -57,12 +57,22 @@ def main():
     # Parse arguments
     args = parser.parse_args()
 
+    # Set logging level
+    logging_level = logging.INFO if args.verbose else logging.WARNING
+    logging.basicConfig(level=logging_level)
+
     # Load and parse config file
-    if pathlib.Path(args.conf_path).exists():
+    if not pathlib.Path(args.conf_path).exists():
+        logging.critical(f'Specified config file `{args.conf_path}` does not '
+                         'exist.')
+        sys.exit(1)
+    if not pathlib.Path(args.conf_path).is_file():
+        logging.critical(f'Specified config file `{args.conf_path}` is not a '
+                         'file.')
+        sys.exit(1)
+    else:
         conf = configparser.ConfigParser()
         conf.read(args.conf_path)
-    else:
-        raise FileNotFoundError(args.conf_path)
 
     # Choose default library if none is specified
     if args.lib is None:
@@ -76,8 +86,7 @@ def main():
                   conf.getint('config', 'filename_length'),
                   conf.getint('config', 'key_length'),
                   conf.getint('config', 'wrap_width'),
-                  args.dry_run,
-                  args.verbose)
+                  args.dry_run)
 
     # Run subcommand. If no subcommand was specified, print help message.
     try:
@@ -123,7 +132,7 @@ def link(lib, args):
 class Library:
 
     def __init__(self, bibtex_file, storage_path, filename_length, key_length,
-                 wrap_width, dry_run, verbose):
+                 wrap_width, dry_run):
         # Paths and settings
         self.bibtex_file = pathlib.Path(bibtex_file)
         self.bibtex_bak_file = pathlib.Path(bibtex_file + '.bak')
@@ -132,7 +141,6 @@ class Library:
         self.key_length = key_length
         self.wrap_width = wrap_width
         self.dry_run = dry_run
-        self.verbose = verbose
         self.db = None
 
     def create_missing_groups(self):
@@ -224,43 +232,37 @@ class Library:
     def write_bib_file(self):
         """Writes BibTeX dictionary to file.
         """
-        if self.dry_run or self.verbose:
-            typ = 'dry_run' if self.dry_run else 'info'
-            _pprint(f'Deleting `{self.bibtex_bak_file}`.', typ)
-            _pprint(f'Moving `{self.bibtex_file}` to '
-                    f'`{self.bibtex_bak_file}`.', typ)
-            _pprint(f'Writing `{self.bibtex_file}`.', typ)
+        if self.dry_run:
+            logging.info(f'(Dry run) Deleting `{self.bibtex_bak_file}`.')
+            logging.info(f'(Dry run) Moving `{self.bibtex_file}` to '
+                         f'`{self.bibtex_bak_file}`.')
+            logging.info(f'(Dry run) Writing `{self.bibtex_file}`.')
         else:
             # Delete .bak file if it exists
+            logging.info(f'Deleting `{self.bibtex_bak_file}`.')
             self.bibtex_bak_file.unlink(missing_ok=True)
             # Rename .bib file to .bib.bak
+            logging.info(f'Moving `{self.bibtex_file}` to '
+                         f'`{self.bibtex_bak_file}`.')
             if self.bibtex_file.exists():
                 self.bibtex_file.rename(self.bibtex_bak_file)
             # Write new .bib file
+            logging.info(f'Writing `{self.bibtex_file}`.')
             with open(self.bibtex_file, 'a') as bib:
                 for entry in self.db.values():
                     bib.write(entry.to_bib(wrap_width=self.wrap_width))
                     bib.write('\n\n')
 
     def move_pdf_file(self, old_file, new_file):
-        if self.dry_run or self.verbose:
-            typ = 'dry_run' if self.dry_run else 'info'
-            _pprint(f'Moving `{old_file}` to `{new_file}`.', typ)
+        if self.dry_run:
+            logging.info(f'(Dry run) Moving `{old_file}` to `{new_file}`.')
         elif not old_file.exists():
-            _pprint(f'{old_file} does not exist. Not moving.', 'warning')
+            logging.warning(f'{old_file} does not exist. Not moving.')
         elif not old_file.is_file():
-            _pprint(f'{old_file} is not a file. Not moving.', 'warning')
+            logging.warning(f'{old_file} is not a file. Not moving.')
         else:
+            logging.info(f'Moving `{old_file}` to `{new_file}`.')
             shutil.move(old_file, new_file)
-
-
-def _pprint(text, typ):
-    if typ == 'warning':
-        print(termcolor.colored('Warning: ', 'red') + text)
-    elif typ == 'info':
-        print(termcolor.colored('Info: ', 'yellow') + text)
-    elif typ == 'dry_run':
-        print(termcolor.colored('Dry run: ', 'yellow') + text)
 
 
 def _clean_string(s):

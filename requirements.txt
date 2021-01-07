@@ -1,2 +1,1 @@
 -e git://github.com/aclements/biblib.git#egg=biblib
-termcolor

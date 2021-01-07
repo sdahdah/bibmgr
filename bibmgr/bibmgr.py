@@ -1,6 +1,5 @@
 import os
 import argparse
-import sys
 import pathlib
 import biblib.bib
 import biblib.algo
@@ -23,6 +22,8 @@ def main():
     else:
         # If on Windows, must specify manually for now
         default_conf_path = ''
+
+    # TODO Figure out help and prog
 
     parser = argparse.ArgumentParser(description='')
     subparsers = parser.add_subparsers()
@@ -70,8 +71,11 @@ def main():
                   conf.getint('config', 'key_length'),
                   conf.getint('config', 'wrap_width'))
 
-    # Run subcommand
-    args.func(lib, args)
+    # Run subcommand. If no subcommand was specified, print help message.
+    try:
+        args.func(lib, args)
+    except AttributeError:
+        parser.print_help()
 
 
 def echo(lib, args):

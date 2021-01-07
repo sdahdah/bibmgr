@@ -7,6 +7,7 @@ import configparser
 import string
 import shutil
 import collections
+import termcolor
 
 
 def main():
@@ -24,14 +25,19 @@ def main():
         default_conf_path = ''
 
     # TODO Figure out help and prog
+    # TODO Add dry run
 
     parser = argparse.ArgumentParser(description='')
     subparsers = parser.add_subparsers()
 
     # Shared arguments
+    parser.add_argument('-d', '--dry-run', action='store_true', dest='dry_run',
+                        help='')
+    parser.add_argument('-v', '--verbose', action='store_true', dest='verbose',
+                        help='')
     parser.add_argument('-c', '--config', metavar='CONFIG', type=str,
                         dest='conf_path', default=default_conf_path,
-                        help='path to default configuration file (*.conf)')
+                        help='Path to configuration file (*.conf)')
     parser.add_argument('-l', '--library', metavar='LIBRARY', type=str,
                         dest='lib', default=None,
                         help='Name of library to use')
@@ -69,7 +75,9 @@ def main():
                   conf[selected_lib]['storage_path'],
                   conf.getint('config', 'filename_length'),
                   conf.getint('config', 'key_length'),
-                  conf.getint('config', 'wrap_width'))
+                  conf.getint('config', 'wrap_width'),
+                  args.dry_run,
+                  args.verbose)
 
     # Run subcommand. If no subcommand was specified, print help message.
     try:
@@ -103,6 +111,7 @@ def link(lib, args):
     lib.open_bib_db()
     # Make sure desired PDF exists
     # TODO Also check that it's a file not a directory
+    # TODO MOVE THIS
     pdf_path = pathlib.Path(args.pdf)
     if not pdf_path.exists():
         raise FileNotFoundError(args.pdf)
@@ -114,7 +123,7 @@ def link(lib, args):
 class Library:
 
     def __init__(self, bibtex_file, storage_path, filename_length, key_length,
-                 wrap_width):
+                 wrap_width, dry_run, verbose):
         # Paths and settings
         self.bibtex_file = pathlib.Path(bibtex_file)
         self.bibtex_bak_file = pathlib.Path(bibtex_file + '.bak')
@@ -122,9 +131,12 @@ class Library:
         self.filename_length = filename_length
         self.key_length = key_length
         self.wrap_width = wrap_width
+        self.dry_run = dry_run
+        self.verbose = verbose
         self.db = None
 
     def create_missing_groups(self):
+        # TODO Unfiled group?
         for entry in self.db.values():
             group_path = self.storage_path.joinpath(entry['groups'])
             try:
@@ -134,6 +146,7 @@ class Library:
 
     def rename_according_to_bib(self):
         for key, entry in zip(self.db.keys(), self.db.values()):
+            # TODO Deal with missing date, year, etc.
             # Take last name of first author
             name = _clean_string(
                 biblib.algo.parse_names(entry['author'])[0].last)
@@ -147,17 +160,15 @@ class Library:
             if 'file' not in entry.keys():
                 # TODO Maybe warn here?
                 continue
+            if entry['file'] == '':
+                # TODO Maybe warn here?
+                continue
             pdf_path = pathlib.Path(entry['file'])
             ext = ''.join(pdf_path.suffixes)
             new_path = pdf_path.parent.joinpath(filename + ext)
             # Double check if path points to a file to avoid accidentally
             # moving directory. `is_file()` is the most important check here.
-            # TODO Maybe encapsulate this
-            if (('file' not in entry.keys()) or (entry['file'] == '')
-                    or (not pdf_path.exists()) or (not pdf_path.is_file())):
-                # TODO Maybe warn here?
-                continue
-            shutil.move(pdf_path, new_path)
+            self.move_pdf_file(pdf_path, new_path)
             entry['file'] = str(new_path)
 
     def move_according_to_bib(self):
@@ -165,17 +176,15 @@ class Library:
             if 'file' not in entry.keys():
                 # TODO Maybe warn here?
                 continue
+            if entry['file'] == '':
+                # TODO Maybe warn here?
+                continue
             pdf_path = pathlib.Path(entry['file'])
             new_path = self.storage_path.joinpath(
                 entry['groups']).joinpath(pdf_path.name)
             # Double check if path points to a file to avoid accidentally
             # moving directory. `is_file()` is the most important check here.
-            # TODO Maybe encapsulate this
-            if (('file' not in entry.keys()) or (entry['file'] == '')
-                    or (not pdf_path.exists()) or (not pdf_path.is_file())):
-                # TODO Maybe warn here?
-                continue
-            shutil.move(pdf_path, new_path)
+            self.move_pdf_file(pdf_path, new_path)
             entry['file'] = str(new_path)
 
     def rekey_according_to_bib(self):
@@ -200,12 +209,6 @@ class Library:
         self.db = new_db
 
     def link_file(self, pdf_path, key):
-        # def gen_db_with_blank_entry(self, key, file):
-        #     entry = (
-        #         f'@misc{{{key},\n'
-        #         f'  file = {{{file}}},\n'
-        #         f'}}'
-        #     )
         if key.lower() in self.db:
             self.db[key.lower()]['file'] = str(pdf_path.resolve())
         else:
@@ -221,16 +224,43 @@ class Library:
     def write_bib_file(self):
         """Writes BibTeX dictionary to file.
         """
-        # Delete .bak file if it exists
-        self.bibtex_bak_file.unlink(missing_ok=True)
-        # Rename .bib file to .bib.bak
-        if self.bibtex_file.exists():
-            self.bibtex_file.rename(self.bibtex_bak_file)
-        # Write new .bib file
-        with open(self.bibtex_file, 'a') as bib:
-            for entry in self.db.values():
-                bib.write(entry.to_bib(wrap_width=self.wrap_width))
-                bib.write('\n\n')
+        if self.dry_run or self.verbose:
+            typ = 'dry_run' if self.dry_run else 'info'
+            _pprint(f'Deleting `{self.bibtex_bak_file}`.', typ)
+            _pprint(f'Moving `{self.bibtex_file}` to '
+                    f'`{self.bibtex_bak_file}`.', typ)
+            _pprint(f'Writing `{self.bibtex_file}`.', typ)
+        else:
+            # Delete .bak file if it exists
+            self.bibtex_bak_file.unlink(missing_ok=True)
+            # Rename .bib file to .bib.bak
+            if self.bibtex_file.exists():
+                self.bibtex_file.rename(self.bibtex_bak_file)
+            # Write new .bib file
+            with open(self.bibtex_file, 'a') as bib:
+                for entry in self.db.values():
+                    bib.write(entry.to_bib(wrap_width=self.wrap_width))
+                    bib.write('\n\n')
+
+    def move_pdf_file(self, old_file, new_file):
+        if self.dry_run or self.verbose:
+            typ = 'dry_run' if self.dry_run else 'info'
+            _pprint(f'Moving `{old_file}` to `{new_file}`.', typ)
+        elif not old_file.exists():
+            _pprint(f'{old_file} does not exist. Not moving.', 'warning')
+        elif not old_file.is_file():
+            _pprint(f'{old_file} is not a file. Not moving.', 'warning')
+        else:
+            shutil.move(old_file, new_file)
+
+
+def _pprint(text, typ):
+    if typ == 'warning':
+        print(termcolor.colored('Warning: ', 'red') + text)
+    elif typ == 'info':
+        print(termcolor.colored('Info: ', 'yellow') + text)
+    elif typ == 'dry_run':
+        print(termcolor.colored('Dry run: ', 'yellow') + text)
 
 
 def _clean_string(s):

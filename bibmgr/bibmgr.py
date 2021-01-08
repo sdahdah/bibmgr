@@ -59,7 +59,8 @@ def main():
 
     # Set logging level
     logging_level = logging.INFO if args.verbose else logging.WARNING
-    logging.basicConfig(level=logging_level)
+    formatter = '%(levelname)s: %(message)s'
+    logging.basicConfig(format=formatter, level=logging_level)
 
     # Load and parse config file
     if not pathlib.Path(args.conf_path).exists():
@@ -157,8 +158,8 @@ class Library:
                 continue
             filename = _entry_string(entry, self.filename_length)
             if filename == '':
-                logging.warn(f'New file name for entry with key `{key}` is '
-                             'empty. Skipping.')
+                logging.warn('Cannot generate new file name for entry with '
+                             f'key `{key}`. Skipping.')
                 continue
             pdf_path = pathlib.Path(entry['file'])
             ext = ''.join(pdf_path.suffixes)
@@ -191,11 +192,13 @@ class Library:
             new_key = _entry_string(entry, self.key_length, words_from_title=1)
             # If new key is empty, don't change it
             if new_key == '':
-                # TODO Print warning
+                logging.warn('Cannot generate new key for entry with key '
+                             f'`{key}`. Skipping.')
                 new_key = key
             # If there's a duplicate, change the name
             while new_key in new_db.keys():
-                # TODO Print warning
+                logging.warn(f'Two entires share the key `{key}`. '
+                             'Appending `_dup` to second entry.')
                 new_key += '_dup'
             entry.key = new_key
             new_db[new_key] = entry

@@ -83,6 +83,7 @@ def main():
     # Create Library object
     lib = Library(conf[selected_lib]['bibtex_file'],
                   conf[selected_lib]['storage_path'],
+                  conf[selected_lib]['default_group'],
                   conf.getint('config', 'filename_length'),
                   conf.getint('config', 'key_length'),
                   conf.getint('config', 'wrap_width'),
@@ -124,12 +125,13 @@ def link(lib, args):
 
 class Library:
 
-    def __init__(self, bibtex_file, storage_path, filename_length, key_length,
-                 wrap_width, dry_run):
+    def __init__(self, bibtex_file, storage_path, default_group,
+                 filename_length, key_length, wrap_width, dry_run):
         # Paths and settings
         self.bibtex_file = pathlib.Path(bibtex_file)
         self.bibtex_bak_file = pathlib.Path(bibtex_file + '.bak')
         self.storage_path = pathlib.Path(storage_path)
+        self.default_group = default_group
         self.filename_length = filename_length
         self.key_length = key_length
         self.wrap_width = wrap_width
@@ -137,9 +139,11 @@ class Library:
         self.db = None
 
     def create_missing_groups(self):
-        # TODO Unfiled group?
         for entry in self.db.values():
-            group_path = self.storage_path.joinpath(entry['groups'])
+            if 'groups' in entry.keys():
+                group_path = self.storage_path.joinpath(entry['groups'])
+            else:
+                group_path = self.storage_path.joinpath(self.default_group)
             try:
                 group_path.mkdir()
             except FileExistsError:
@@ -147,22 +151,14 @@ class Library:
 
     def rename_according_to_bib(self):
         for key, entry in zip(self.db.keys(), self.db.values()):
-            # TODO Deal with missing date, year, etc.
-            # Take last name of first author
-            name = _clean_string(
-                biblib.algo.parse_names(entry['author'])[0].last)
-            year = _clean_string(entry['year'])
-            title = _clean_string(entry['title'])
-            filename = (name + '_' + year + '_' + title)[:self.filename_length]
-            if filename == '':
-                # TODO DO SOMETHING MORE GRACEFUL?
-                raise RuntimeError(f"New file name for key '{key}' is empty, "
-                                   f"cannot rename.")
-            if 'file' not in entry.keys():
-                # TODO Maybe warn here?
+            # Skip entries with invalid files.
+            # Logging takes place inside helper function.
+            if not _entry_file_is_valid(key, entry):
                 continue
-            if entry['file'] == '':
-                # TODO Maybe warn here?
+            filename = _entry_string(entry, self.filename_length)
+            if filename == '':
+                logging.warn(f'New file name for entry with key `{key}` is '
+                             'empty. Skipping.')
                 continue
             pdf_path = pathlib.Path(entry['file'])
             ext = ''.join(pdf_path.suffixes)
@@ -174,12 +170,13 @@ class Library:
 
     def move_according_to_bib(self):
         for key, entry in zip(self.db.keys(), self.db.values()):
-            if 'file' not in entry.keys():
-                # TODO Maybe warn here?
+            # Skip entries with invalid files.
+            # Logging takes place inside helper function.
+            if not _entry_file_is_valid(key, entry):
                 continue
-            if entry['file'] == '':
-                # TODO Maybe warn here?
-                continue
+            # Add default group
+            if 'groups' not in entry.keys():
+                entry['groups'] = self.default_group
             pdf_path = pathlib.Path(entry['file'])
             new_path = self.storage_path.joinpath(
                 entry['groups']).joinpath(pdf_path.name)
@@ -191,12 +188,7 @@ class Library:
     def rekey_according_to_bib(self):
         new_db = collections.OrderedDict()
         for key, entry in zip(self.db.keys(), self.db.values()):
-            # Take last name of first author
-            name = _clean_string(
-                biblib.algo.parse_names(entry['author'])[0].last)
-            year = _clean_string(entry['year'])
-            title = _clean_string(entry['title'].split(' ')[0])
-            new_key = (name + '_' + year + '_' + title)[:self.key_length]
+            new_key = _entry_string(entry, self.key_length, words_from_title=1)
             # If new key is empty, don't change it
             if new_key == '':
                 # TODO Print warning
@@ -267,6 +259,45 @@ class Library:
         else:
             logging.info(f'Moving `{old_file}` to `{new_file}`.')
             shutil.move(old_file, new_file)
+
+
+def _entry_file_is_valid(key, entry):
+    if 'file' not in entry.keys():
+        logging.warn(f'No file in entry with key `{key}`. Skipping.')
+        return False
+    if entry['file'] == '':
+        logging.warn(f'File field in entry with key `{key}` is '
+                     'empty. Skipping.')
+        return False
+    if not pathlib.Path(entry['file']).exists():
+        logging.warn(f"File `{entry['file']}` in entry with key "
+                     f"`{key}` does not exist. Skipping.")
+        return False
+    if not pathlib.Path(entry['file']).is_file():
+        logging.warn(f"File `{entry['file']}` in entry with key "
+                     f"`{key}` is not a file. Skipping.")
+        return False
+    return True
+
+
+def _entry_string(entry, max_length, words_from_title=None):
+    """Return string with format author_year_title."""
+    string_components = []
+    if 'author' in entry.keys():
+        # Last name of first author
+        string_components.append(_clean_string(
+            biblib.algo.parse_names(entry['author'])[0].last))
+    if 'year' in entry.keys():
+        string_components.append(_clean_string(entry['year']))
+    if 'title' in entry.keys():
+        if words_from_title is None:
+            # Take all of title
+            string_components.append(_clean_string(entry['title']))
+        else:
+            # Take up to `words_from_title` words from title
+            string_components.append(_clean_string(
+                '_'.join(entry['title'].split(' ')[:words_from_title])))
+    return '_'.join(string_components)[:max_length]
 
 
 def _clean_string(s):

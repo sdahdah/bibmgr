@@ -26,34 +26,48 @@ def main():
         localappdata = pathlib.Path(os.environ.get('LOCALAPPDATA'))
         default_conf_path = localappdata.joinpath('bibmgr/bibmgr.conf')
 
-    # TODO Figure out help and prog
-    parser = argparse.ArgumentParser(description='')
+    parser = argparse.ArgumentParser(
+        description='bibmgr is a CLI reference manager based around BibTeX'
+    )
+
     subparsers = parser.add_subparsers()
 
     # Shared arguments
     parser.add_argument('-v', '--verbose', action='store_true', dest='verbose',
-                        help='')
+                        help='show detailed output')
     parser.add_argument('--debug', action='store_true', dest='debug',
-                        help='')
+                        help='show very detailed output with timestamps '
+                             '(stronger version of `--verbose`)')
     parser.add_argument('--dry-run', action='store_true', dest='dry_run',
-                        help='')
+                        help='run command without moving or writing to any '
+                             'files (pair with `--verbose` to see what file '
+                             'operations would take place)')
     parser.add_argument('-c', '--config', metavar='CONFIG', type=str,
                         dest='conf_path', default=default_conf_path,
-                        help='Path to configuration file (*.conf)')
+                        help='path to configuration file (*.conf)')
     parser.add_argument('-l', '--library', metavar='LIBRARY', type=str,
                         dest='lib', default=None,
-                        help='Name of library to use')
+                        help='name of library to use (as specified in config)')
     # Echo subcommand
-    echo_parser = subparsers.add_parser('echo', help='Print BibTeX file.')
+    echo_help = 'print BibTeX file'
+    echo_parser = subparsers.add_parser('echo', description=echo_help,
+                                        help=echo_help)
     echo_parser.set_defaults(func=echo)
     # Org subcommand
-    org_parser = subparsers.add_parser('org', help='')
+    org_help = ('automatically create group directories, rename and move '
+                'files, and generate new keys from BibTeX fields')
+    org_parser = subparsers.add_parser('org', description=org_help,
+                                       help=org_help)
     org_parser.set_defaults(func=org)
     # Link subcommand
-    link_parser = subparsers.add_parser('link', help='')
-    link_parser.add_argument('pdf', metavar='PDF', type=str, help='')
+    link_help = ('link a file to an existing BibTeX entry or create a new '
+                 'entry for that file')
+    link_parser = subparsers.add_parser('link', description=link_help,
+                                        help=link_help)
+    link_parser.add_argument('file', metavar='FILE', type=str,
+                             help='file to link')
     link_parser.add_argument('-k', '--key', metavar='KEY', type=str,
-                             default=None, help='')
+                             default=None, help='key of entry to link')
     link_parser.set_defaults(func=link)
 
     # Parse arguments
@@ -128,7 +142,7 @@ def org(lib, args):
 
 def link(lib, args):
     lib.open_bib_db()
-    lib.link_file(args.pdf, args.key)
+    lib.link_file(args.file, args.key)
     lib.write_bib_file()
 
 

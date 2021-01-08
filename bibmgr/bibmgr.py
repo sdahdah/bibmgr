@@ -59,7 +59,7 @@ def main():
 
     # Set logging level
     logging_level = logging.INFO if args.verbose else logging.WARNING
-    formatter = '%(levelname)s: %(message)s'
+    formatter = '[%(asctime)s] %(levelname)s: %(message)s'
     logging.basicConfig(format=formatter, level=logging_level)
 
     # Load and parse config file

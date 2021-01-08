@@ -181,11 +181,15 @@ class Library:
             new_path = pdf_path.parent.joinpath(filename + ext)
             # Double check if path points to a file to avoid accidentally
             # moving directory. `is_file()` is the most important check here.
-            if pdf_path != new_path:
-                self.move_pdf_file(pdf_path, new_path)
-            else:
+            if pdf_path == new_path:
                 logging.debug(f'File `{pdf_path}` does not need to be '
                               'renamed. Skipping.')
+            elif new_path.exists():
+                logging.warn(f'Cannot rename `{pdf_path}` to `{new_path}` '
+                             'because a file with the same name already '
+                             'exists. Skipping.')
+            else:
+                self.move_pdf_file(pdf_path, new_path)
             entry['file'] = str(new_path)
 
     def move_according_to_bib(self):
@@ -202,11 +206,15 @@ class Library:
                 entry['groups']).joinpath(pdf_path.name)
             # Double check if path points to a file to avoid accidentally
             # moving directory. `is_file()` is the most important check here.
-            if pdf_path != new_path:
-                self.move_pdf_file(pdf_path, new_path)
-            else:
+            if pdf_path == new_path:
                 logging.debug(f'File `{pdf_path}` does not need to be moved. '
                               'Skipping.')
+            elif new_path.exists():
+                logging.warn(f'Cannot move `{pdf_path}` to `{new_path}` '
+                             'because a file with the same name already '
+                             'exists in that location. Skipping.')
+            else:
+                self.move_pdf_file(pdf_path, new_path)
             entry['file'] = str(new_path)
 
     def rekey_according_to_bib(self):

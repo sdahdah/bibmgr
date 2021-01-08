@@ -1,6 +1,8 @@
 # bibmgr
 
-Reference management tools for BibTeX
+CLI reference management tools for BibTeX.
+
+Relies heavily on [biblib](https://github.com/aclements/biblib).
 
 # To Do
 

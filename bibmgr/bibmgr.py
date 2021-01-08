@@ -31,9 +31,11 @@ def main():
     subparsers = parser.add_subparsers()
 
     # Shared arguments
-    parser.add_argument('-d', '--dry-run', action='store_true', dest='dry_run',
-                        help='')
     parser.add_argument('-v', '--verbose', action='store_true', dest='verbose',
+                        help='')
+    parser.add_argument('--debug', action='store_true', dest='debug',
+                        help='')
+    parser.add_argument('--dry-run', action='store_true', dest='dry_run',
                         help='')
     parser.add_argument('-c', '--config', metavar='CONFIG', type=str,
                         dest='conf_path', default=default_conf_path,
@@ -58,8 +60,15 @@ def main():
     args = parser.parse_args()
 
     # Set logging level
-    logging_level = logging.INFO if args.verbose else logging.WARNING
-    formatter = '[%(asctime)s] %(levelname)s: %(message)s'
+    if args.debug:
+        logging_level = logging.DEBUG
+        formatter = '[%(asctime)s] %(levelname)s: %(message)s'
+    elif args.verbose:
+        logging_level = logging.INFO
+        formatter = '%(levelname)s: %(message)s'
+    else:
+        logging_level = logging.WARNING
+        formatter = '%(levelname)s: %(message)s'
     logging.basicConfig(format=formatter, level=logging_level)
 
     # Load and parse config file
@@ -154,8 +163,8 @@ class Library:
                     logging.info(f'Creating `{group_path}`.')
                     group_path.mkdir()
             else:
-                logging.info(f'Directory `{group_path}` already exists. '
-                             'Skipping.')
+                logging.debug(f'Directory `{group_path}` already exists. '
+                              'Skipping.')
 
     def rename_according_to_bib(self):
         for key, entry in zip(self.db.keys(), self.db.values()):
@@ -173,7 +182,11 @@ class Library:
             new_path = pdf_path.parent.joinpath(filename + ext)
             # Double check if path points to a file to avoid accidentally
             # moving directory. `is_file()` is the most important check here.
-            self.move_pdf_file(pdf_path, new_path)
+            if pdf_path != new_path:
+                self.move_pdf_file(pdf_path, new_path)
+            else:
+                logging.debug(f'File `{pdf_path}` does not need to be '
+                              'renamed. Skipping.')
             entry['file'] = str(new_path)
 
     def move_according_to_bib(self):
@@ -190,7 +203,11 @@ class Library:
                 entry['groups']).joinpath(pdf_path.name)
             # Double check if path points to a file to avoid accidentally
             # moving directory. `is_file()` is the most important check here.
-            self.move_pdf_file(pdf_path, new_path)
+            if pdf_path != new_path:
+                self.move_pdf_file(pdf_path, new_path)
+            else:
+                logging.debug(f'File `{pdf_path}` does not need to be moved. '
+                              'Skipping.')
             entry['file'] = str(new_path)
 
     def rekey_according_to_bib(self):

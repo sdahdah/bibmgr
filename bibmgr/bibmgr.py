@@ -141,14 +141,21 @@ class Library:
 
     def create_missing_groups(self):
         for entry in self.db.values():
+            # If group doesn't exist, set it to the default
             if 'groups' in entry.keys():
                 group_path = self.storage_path.joinpath(entry['groups'])
             else:
                 group_path = self.storage_path.joinpath(self.default_group)
-            try:
-                group_path.mkdir()
-            except FileExistsError:
-                pass  # Folder exists, don't need to do anything
+            # If folder does not already exist, create it.
+            if not group_path.exists():
+                if self.dry_run:
+                    logging.info(f'(Dry run) Creating `{group_path}`.')
+                else:
+                    logging.info(f'Creating `{group_path}`.')
+                    group_path.mkdir()
+            else:
+                logging.info(f'Directory `{group_path}` already exists. '
+                             'Skipping.')
 
     def rename_according_to_bib(self):
         for key, entry in zip(self.db.keys(), self.db.values()):

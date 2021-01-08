@@ -113,7 +113,6 @@ def echo(lib, args):
 
 
 def org(lib, args):
-    # TODO DONT MOVE IF EVERYTHING IS IN ORDER
     lib.open_bib_db()
     # Create new group folders
     lib.create_missing_groups()

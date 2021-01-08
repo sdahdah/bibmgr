@@ -13,5 +13,8 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     entry_points={
         'console_scripts': ['bibmgr=bibmgr.bibmgr:main'],
-    }
+    },
+    install_requires=[
+      'biblib @ git+ssh://git@github.com/aclements/biblib#egg=biblib',
+    ],
 )

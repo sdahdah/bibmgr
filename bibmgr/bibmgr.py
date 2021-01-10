@@ -111,6 +111,7 @@ def main():
     lib = Library(conf[selected_lib]['bibtex_file'],
                   conf[selected_lib]['storage_path'],
                   conf[selected_lib]['default_group'],
+                  conf.getint('config', 'filename_words'),
                   conf.getint('config', 'filename_length'),
                   conf.getint('config', 'key_length'),
                   conf.getint('config', 'wrap_width'),
@@ -188,7 +189,8 @@ class Library:
     settings from config file."""
 
     def __init__(self, bibtex_file, storage_path, default_group,
-                 filename_length, key_length, wrap_width, dry_run):
+                 filename_words, filename_length, key_length, wrap_width,
+                 dry_run):
         """Constructor saves arguments and creates pathlib Path objects form
         string inputs.
 
@@ -200,6 +202,8 @@ class Library:
             Path to folder where linked files are stored.
         default_group: str
             Group where files that have no associated group are stored.
+        filename_words: int
+            Maximum number of words from title to use in filename.
         filename_length: int
             Maximum number of characters in a filename.
         key_length: int
@@ -215,6 +219,7 @@ class Library:
         self.bibtex_bak_file = pathlib.Path(bibtex_file + '.bak')
         self.storage_path = pathlib.Path(storage_path)
         self.default_group = default_group
+        self.filename_words = filename_words
         self.filename_length = filename_length
         self.key_length = key_length
         self.wrap_width = wrap_width
@@ -259,7 +264,8 @@ class Library:
             if not _entry_file_is_valid(key, entry):
                 continue
             # Generate the new filename using a helper function.
-            filename = _entry_string(entry, self.filename_length)
+            filename = _entry_string(entry, self.filename_length,
+                                     words_from_title=self.filename_words)
             # If the new filename is empty skip.
             if filename == '':
                 logging.warn('Cannot generate new file name for entry with '

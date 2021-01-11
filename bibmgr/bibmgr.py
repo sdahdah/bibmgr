@@ -28,7 +28,6 @@ def main():
             xdg_config_home = pathlib.Path(xdg_config_home_raw)
         default_conf_path = xdg_config_home.joinpath('bibmgr/bibmgr.conf')
     else:
-        # TODO Windows is untested...
         localappdata = pathlib.Path(os.environ.get('LOCALAPPDATA'))
         default_conf_path = localappdata.joinpath('bibmgr/bibmgr.conf')
 

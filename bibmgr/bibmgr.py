@@ -346,7 +346,7 @@ class Library:
         self.db = new_db
 
     def link_file(self, file, key=None):
-        """Updates the `file` field in a BibTeX entry. Creates a new entry if 
+        """Updates the `file` field in a BibTeX entry. Creates a new entry if
         no key is specified.
 
         Parameters
@@ -360,7 +360,7 @@ class Library:
         # Read path and set default key
         file_path = pathlib.Path(file)
         if key is None:
-            key = file_path.stem
+            key = _clean_string(file_path.stem)
         # Check validity of PDF path, then link if valid.
         if not file_path.exists():
             logging.warning(f'{file_path} does not exist. Not linking.')

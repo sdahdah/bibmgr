@@ -9,6 +9,7 @@ import string
 import shutil
 import collections
 import logging
+import pdflu
 
 
 def main():
@@ -48,7 +49,7 @@ def main():
     parser.add_argument('-c', '--config', metavar='CONFIG', type=str,
                         dest='conf_path', default=default_conf_path,
                         help='path to configuration file (*.conf)')
-    parser.add_argument('-l', '--library', metavar='LIBRARY', type=str,
+    parser.add_argument('-L', '--library', metavar='LIBRARY', type=str,
                         dest='lib', default=None,
                         help='name of library to use (as specified in config)')
     # Echo subcommand
@@ -71,6 +72,9 @@ def main():
                              help='file to link')
     link_parser.add_argument('-k', '--key', metavar='KEY', type=str,
                              default=None, help='key of entry to link')
+    link_parser.add_argument('-l', '--lookup', action='store_true',
+                             dest='lookup', default=True,
+                             help='look up file online when linking')
     link_parser.set_defaults(func=link)
     # Parse arguments
     args = parser.parse_args()
@@ -118,12 +122,12 @@ def main():
 
     # Run subcommand. If no subcommand was specified, print help message.
     try:
-        args.func(lib, args)
+        args.func(lib, args, conf)
     except AttributeError:
         parser.print_help()
 
 
-def echo(lib, args):
+def echo(lib, args, conf):
     """Subcommand that parses and prints the BibTeX file to stdout.
 
     Parameters
@@ -132,13 +136,15 @@ def echo(lib, args):
         Library object to operate on.
     args: argparse.Namespace
         Arguments to consider.
+    conf: configparser.ConfigParser
+        Parsed config file.
     """
     lib.open_bib_db()
     for entry in lib.db.values():
         print(entry.to_bib(wrap_width=lib.wrap_width), end='\n\n')
 
 
-def org(lib, args):
+def org(lib, args, conf):
     """Subcommand that organizes library files.
 
     Specifically, the command
@@ -153,6 +159,8 @@ def org(lib, args):
         Library object to operate on.
     args: argparse.Namespace
         Arguments to consider.
+    conf: configparser.ConfigParser
+        Parsed config file.
     """
     lib.open_bib_db()
     # Create new group folders
@@ -167,7 +175,7 @@ def org(lib, args):
     lib.write_bib_file()
 
 
-def link(lib, args):
+def link(lib, args, conf):
     """Subcommand that links a file to a BibTeX entry. Creates a new entry if
     needed.
 
@@ -177,9 +185,13 @@ def link(lib, args):
         Library object to operate on.
     args: argparse.Namespace
         Arguments to consider.
+    conf: configparser.ConfigParser
+        Parsed config file.
     """
     lib.open_bib_db()
-    lib.link_file(args.file, args.key)
+    key = lib.link_file(args.file, args.key)
+    if args.lookup:
+        lib.lookup_and_update(key, conf)
     lib.write_bib_file()
 
 
@@ -356,6 +368,11 @@ class Library:
         key: str
             Key of entry to be linked. If `None`, new entry is created with
             filename as key.
+
+        Returns
+        -------
+        key: str
+            Key where file was linked.
         """
         # Read path and set default key
         file_path = pathlib.Path(file)
@@ -373,6 +390,36 @@ class Library:
                 self.db[key.lower()] = biblib.bib.Entry(
                     [('file', str(file_path.resolve()))], key=key.lower(),
                     typ='misc')
+        return key.lower()
+
+    def lookup_and_update(self, key, conf):
+        """Loopup file using pdflu and update bibliographic information.
+
+        Parameters
+        ----------
+        key: str
+            Key to update
+        conf: configparser.ConfigParser
+            Parsed config file.
+        """
+        # Get file from bib entry
+        file = self.db[key.lower()]['file']
+        # Construct query by parsing file
+        query = pdflu.construct_query_from_pdf(file, conf)
+        # Query databases
+        results = pdflu.query_and_sort(query, conf)
+        # Get BibTeX entry of best result
+        bib_entry = results[0].get_bibtex()
+        # Parse entry and update database
+        parsed_entry = biblib.bib.Parser().parse(bib_entry).get_entries()
+        # Go through parsed entry, which is itself a database,
+        # and assign the correct key and file. Then update the main databse.
+        # This loop should only ever iterate once! But it seems to be the
+        # cleanest way to access an OrderedDict.
+        for k in parsed_entry:
+            parsed_entry[k].key = key
+            parsed_entry[k]['file'] = file
+            self.db[key] = parsed_entry[k]
 
     def open_bib_db(self):
         """Opens and reads contents of BibTeX file."""
@@ -527,12 +574,12 @@ def _get_extension(path):
 
     Parameters
     ----------
-    path : pathlib.Path
+    path: pathlib.Path
         Path to file.
 
     Returns
     -------
-    str :
+    str:
         File extension.
     """
     known_double_extensions = ['.tar.gz', '.tar.bz2']

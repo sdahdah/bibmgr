@@ -272,7 +272,7 @@ class Library:
                 continue
             # Get old path from entry and extract extension.
             old_path = pathlib.Path(entry['file'])
-            ext = ''.join(old_path.suffixes)
+            ext = _get_extension(old_path)
             # Create new path with new filename (keep extension and location)
             new_path = old_path.parent.joinpath(filename + ext)
             # Double check if path points to a file to avoid accidentally
@@ -517,3 +517,29 @@ def _clean_string(s):
     s_nospace = s.lower().replace(' ', '_')
     s_clean = ''.join(char for char in s_nospace if char in valid)
     return s_clean
+
+
+def _get_extension(path):
+    """Gets the extension of a path.
+
+    Assumes all extensions except ``.tar.gz`` and ``.tar.bz2`` are single
+    extensions.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Path to file.
+
+    Returns
+    -------
+    str :
+        File extension.
+    """
+    known_double_extensions = ['.tar.gz', '.tar.bz2']
+    # If extension is not a known double extension, take last part only.
+    extensions = ''.join(path.suffixes)
+    if extensions in known_double_extensions:
+        ext = extensions
+    else:
+        ext = path.suffixes[-1]
+    return ext

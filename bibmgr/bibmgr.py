@@ -409,7 +409,11 @@ class Library:
         # Query databases
         results = pdflu.query_and_sort(query, conf)
         # Get BibTeX entry of best result
-        bib_entry = results[0].get_bibtex()
+        selected_result = pdflu.interactive_select(results, conf)
+        if selected_result is None:
+            return None
+        else:
+            bib_entry = selected_result.get_bibtex()
         # Parse entry and update database
         parsed_entry = biblib.bib.Parser().parse(bib_entry).get_entries()
         # Go through parsed entry, which is itself a database,

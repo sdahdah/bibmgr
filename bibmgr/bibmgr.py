@@ -73,7 +73,7 @@ def main():
     link_parser.add_argument('-k', '--key', metavar='KEY', type=str,
                              default=None, help='key of entry to link')
     link_parser.add_argument('-l', '--lookup', action='store_true',
-                             dest='lookup', default=True,
+                             dest='lookup', default=False,
                              help='look up file online when linking')
     link_parser.set_defaults(func=link)
     # Parse arguments

@@ -1,14 +1,16 @@
-import os
-import sys
 import argparse
-import pathlib
-import biblib.bib
-import biblib.algo
-import configparser
-import string
-import shutil
 import collections
+import configparser
 import logging
+import os
+import pathlib
+import shutil
+import string
+import subprocess
+import sys
+
+import biblib.algo
+import biblib.bib
 import pdflu
 
 
@@ -37,45 +39,78 @@ def main():
         description='bibmgr is a CLI reference manager based around BibTeX')
     subparsers = parser.add_subparsers()
     # Shared arguments for all subcommands
-    parser.add_argument('-v', '--verbose', action='store_true', dest='verbose',
+    parser.add_argument('-v',
+                        '--verbose',
+                        action='store_true',
+                        dest='verbose',
                         help='show detailed output')
-    parser.add_argument('--debug', action='store_true', dest='debug',
+    parser.add_argument('--debug',
+                        action='store_true',
+                        dest='debug',
                         help='show very detailed output with timestamps '
-                             '(stronger version of `--verbose`)')
-    parser.add_argument('--dry-run', action='store_true', dest='dry_run',
+                        '(stronger version of `--verbose`)')
+    parser.add_argument('--dry-run',
+                        action='store_true',
+                        dest='dry_run',
                         help='run command without moving or writing to any '
-                             'files (pair with `--verbose` to see what file '
-                             'operations would take place)')
-    parser.add_argument('-c', '--config', metavar='CONFIG', type=str,
-                        dest='conf_path', default=default_conf_path,
+                        'files (pair with `--verbose` to see what file '
+                        'operations would take place)')
+    parser.add_argument('-c',
+                        '--config',
+                        metavar='CONFIG',
+                        type=str,
+                        dest='conf_path',
+                        default=default_conf_path,
                         help='path to configuration file (*.conf)')
-    parser.add_argument('-L', '--library', metavar='LIBRARY', type=str,
-                        dest='lib', default=None,
+    parser.add_argument('-L',
+                        '--library',
+                        metavar='LIBRARY',
+                        type=str,
+                        dest='lib',
+                        default=None,
                         help='name of library to use (as specified in config)')
     # Echo subcommand
     echo_help = 'print BibTeX file'
-    echo_parser = subparsers.add_parser('echo', description=echo_help,
+    echo_parser = subparsers.add_parser('echo',
+                                        description=echo_help,
                                         help=echo_help)
     echo_parser.set_defaults(func=echo)
     # Org subcommand
     org_help = ('automatically create group directories, rename and move '
                 'files, and generate new keys from BibTeX fields')
-    org_parser = subparsers.add_parser('org', description=org_help,
+    org_parser = subparsers.add_parser('org',
+                                       description=org_help,
                                        help=org_help)
     org_parser.set_defaults(func=org)
     # Link subcommand
     link_help = ('link a file to an existing BibTeX entry or create a new '
                  'entry for that file')
-    link_parser = subparsers.add_parser('link', description=link_help,
+    link_parser = subparsers.add_parser('link',
+                                        description=link_help,
                                         help=link_help)
-    link_parser.add_argument('file', metavar='FILE', type=str,
+    link_parser.add_argument('file',
+                             metavar='FILE',
+                             type=str,
                              help='file to link')
-    link_parser.add_argument('-k', '--key', metavar='KEY', type=str,
-                             default=None, help='key of entry to link')
-    link_parser.add_argument('-l', '--lookup', action='store_true',
-                             dest='lookup', default=False,
+    link_parser.add_argument('-k',
+                             '--key',
+                             metavar='KEY',
+                             type=str,
+                             default=None,
+                             help='key of entry to link')
+    link_parser.add_argument('-l',
+                             '--lookup',
+                             action='store_true',
+                             dest='lookup',
+                             default=False,
                              help='look up file online when linking')
     link_parser.set_defaults(func=link)
+    # Edit subcommand
+    edit_help = ('edit BibTeX file')
+    edit_parser = subparsers.add_parser('edit',
+                                        description=edit_help,
+                                        help=edit_help)
+    edit_parser.set_defaults(func=edit)
     # Parse arguments
     args = parser.parse_args()
 
@@ -117,14 +152,10 @@ def main():
                   conf.getint('config', 'filename_words'),
                   conf.getint('config', 'filename_length'),
                   conf.getint('config', 'key_length'),
-                  conf.getint('config', 'wrap_width'),
-                  args.dry_run)
+                  conf.getint('config', 'wrap_width'), args.dry_run)
 
     # Run subcommand. If no subcommand was specified, print help message.
-    try:
-        args.func(lib, args, conf)
-    except AttributeError:
-        parser.print_help()
+    args.func(lib, args, conf)
 
 
 def echo(lib, args, conf):
@@ -142,6 +173,21 @@ def echo(lib, args, conf):
     lib.open_bib_db()
     for entry in lib.db.values():
         print(entry.to_bib(wrap_width=lib.wrap_width), end='\n\n')
+
+
+def edit(lib, args, conf):
+    """Subcommand that launches editor on BibTeX file.
+
+    Parameters
+    ----------
+    lib: Library
+        Library object to operate on.
+    args: argparse.Namespace
+        Arguments to consider.
+    conf: configparser.ConfigParser
+        Parsed config file.
+    """
+    subprocess.call([conf['config']['editor'], lib.bibtex_file])
 
 
 def org(lib, args, conf):
@@ -275,7 +321,8 @@ class Library:
             if not _entry_file_is_valid(key, entry):
                 continue
             # Generate the new filename using a helper function.
-            filename = _entry_string(entry, self.filename_length,
+            filename = _entry_string(entry,
+                                     self.filename_length,
                                      words_from_title=self.filename_words)
             # If the new filename is empty skip.
             if filename == '':
@@ -314,8 +361,8 @@ class Library:
             if 'groups' not in entry.keys():
                 entry['groups'] = self.default_group
             old_path = pathlib.Path(entry['file'])
-            new_path = self.storage_path.joinpath(
-                entry['groups']).joinpath(old_path.name)
+            new_path = self.storage_path.joinpath(entry['groups']).joinpath(
+                old_path.name)
             # Double check if path points to a file to avoid accidentally
             # moving directory. `is_file()` is the most important check here.
             if old_path == new_path:
@@ -388,7 +435,8 @@ class Library:
                 self.db[key.lower()]['file'] = str(file_path.resolve())
             else:
                 self.db[key.lower()] = biblib.bib.Entry(
-                    [('file', str(file_path.resolve()))], key=key.lower(),
+                    [('file', str(file_path.resolve()))],
+                    key=key.lower(),
                     typ='misc')
         return key.lower()
 
@@ -530,8 +578,8 @@ def _entry_string(entry, max_length, words_from_title=None):
     string_components = []
     if 'author' in entry.keys():
         # Last name of first author
-        string_components.append(_clean_string(
-            biblib.algo.parse_names(entry['author'])[0].last))
+        string_components.append(
+            _clean_string(biblib.algo.parse_names(entry['author'])[0].last))
     if 'year' in entry.keys():
         string_components.append(_clean_string(entry['year']))
     if 'title' in entry.keys():
@@ -540,8 +588,9 @@ def _entry_string(entry, max_length, words_from_title=None):
             string_components.append(_clean_string(entry['title']))
         else:
             # Take up to `words_from_title` words from title
-            string_components.append(_clean_string(
-                '_'.join(entry['title'].split(' ')[:words_from_title])))
+            string_components.append(
+                _clean_string('_'.join(
+                    entry['title'].split(' ')[:words_from_title])))
     return '_'.join(string_components)[:max_length]
 
 

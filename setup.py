@@ -15,7 +15,7 @@ setuptools.setup(
         'console_scripts': ['bibmgr=bibmgr.bibmgr:main'],
     },
     install_requires=[
-        'biblib @ git+ssh://git@github.com/aclements/biblib#egg=biblib',
+        'biblib @ git+ssh://git@github.com/sdahdah/biblib#egg=biblib',
         'pdflu @ git+ssh://git@github.com/sdahdah/pdflu#egg=pdflu',
     ],
 )

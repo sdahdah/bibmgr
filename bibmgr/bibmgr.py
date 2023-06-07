@@ -83,28 +83,28 @@ def main():
                                        help=org_help)
     org_parser.set_defaults(func=org)
     # Link subcommand
-    link_help = ('link a file to an existing BibTeX entry or create a new '
-                 'entry for that file')
-    link_parser = subparsers.add_parser('link',
-                                        description=link_help,
-                                        help=link_help)
-    link_parser.add_argument('file',
-                             metavar='FILE',
-                             type=str,
-                             help='file to link')
-    link_parser.add_argument('-k',
-                             '--key',
-                             metavar='KEY',
-                             type=str,
-                             default=None,
-                             help='key of entry to link')
-    link_parser.add_argument('-l',
-                             '--lookup',
-                             action='store_true',
-                             dest='lookup',
-                             default=False,
-                             help='look up file online when linking')
-    link_parser.set_defaults(func=link)
+    add_help = ('add a file to an existing BibTeX entry or create a new '
+                'entry for that file')
+    add_parser = subparsers.add_parser('add',
+                                       description=add_help,
+                                       help=add_help)
+    add_parser.add_argument('file',
+                            metavar='FILE',
+                            type=str,
+                            help='file to add')
+    add_parser.add_argument('-k',
+                            '--key',
+                            metavar='KEY',
+                            type=str,
+                            default=None,
+                            help='key of entry to add')
+    add_parser.add_argument('-l',
+                            '--lookup',
+                            action='store_true',
+                            dest='lookup',
+                            default=False,
+                            help='look up file online when adding')
+    add_parser.set_defaults(func=add)
     # Edit subcommand
     edit_help = ('edit BibTeX file')
     edit_parser = subparsers.add_parser('edit',
@@ -221,8 +221,8 @@ def org(lib, args, conf):
     lib.write_bib_file()
 
 
-def link(lib, args, conf):
-    """Subcommand that links a file to a BibTeX entry. Creates a new entry if
+def add(lib, args, conf):
+    """Subcommand that adds a file to a BibTeX entry. Creates a new entry if
     needed.
 
     Parameters
@@ -235,7 +235,7 @@ def link(lib, args, conf):
         Parsed config file.
     """
     lib.open_bib_db()
-    key = lib.link_file(args.file, args.key)
+    key = lib.add_file(args.file, args.key)
     if args.lookup:
         lib.lookup_and_update(key, conf)
     lib.write_bib_file()
@@ -256,7 +256,7 @@ class Library:
         bibtex_file: str
             Path to BibTeX file.
         storage_path: str
-            Path to folder where linked files are stored.
+            Path to folder where added files are stored.
         default_group: str
             Group where files that have no associated group are stored.
         filename_words: int
@@ -404,22 +404,22 @@ class Library:
             new_db[new_key] = entry
         self.db = new_db
 
-    def link_file(self, file, key=None):
+    def add_file(self, file, key=None):
         """Updates the `file` field in a BibTeX entry. Creates a new entry if
         no key is specified.
 
         Parameters
         ----------
         file: str
-            Path to file to be linked.
+            Path to file to be added.
         key: str
-            Key of entry to be linked. If `None`, new entry is created with
+            Key of entry to be added. If `None`, new entry is created with
             filename as key.
 
         Returns
         -------
         key: str
-            Key where file was linked.
+            Key where file was added.
         """
         # Read path and set default key
         file_path = pathlib.Path(file)
@@ -427,9 +427,9 @@ class Library:
             key = _clean_string(file_path.stem)
         # Check validity of PDF path, then link if valid.
         if not file_path.exists():
-            logging.warning(f'{file_path} does not exist. Not linking.')
+            logging.warning(f'{file_path} does not exist. Not adding.')
         elif not file_path.is_file():
-            logging.warning(f'{file_path} is not a file. Not linking.')
+            logging.warning(f'{file_path} is not a file. Not adding.')
         else:
             if key.lower() in self.db:
                 self.db[key.lower()]['file'] = str(file_path.resolve())

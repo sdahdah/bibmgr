@@ -5,6 +5,8 @@
 # TODO LaTeX encoding with middleware?
 # TODO Make paths within library relative
 # TODO Re-implement add and edit
+# TODO Update all documentation and help
+# TODO Make type annotations consistent
 
 import configparser
 import logging
@@ -215,6 +217,45 @@ class Library:
             entry.key = new_key
             new_db.add(entry)
         self._db = new_db
+
+    def add_file(self, file, key=None):
+        """Update the `file` field in a BibTeX entry.
+
+        Creates a new entry if no key is specified.
+
+        Parameters
+        ----------
+        file: str
+            Path to file to be added.
+        key: str
+            Key of entry to be added. If `None`, new entry is created with
+            filename as key.
+        """
+        # Read path and set default key
+        file_path = pathlib.Path(file)
+        if key is None:
+            key = _clean_string(file_path.stem)
+        key = key.lower()
+        # Check validity of PDF path, then link if valid.
+        if not file_path.exists():
+            logging.warning(f'{file_path} does not exist. Not adding.')
+        elif not file_path.is_file():
+            logging.warning(f'{file_path} is not a file. Not adding.')
+        else:
+            if key in self._db.entries_dict.keys():
+                self._db.entries_dict[key]['file'] = str(file_path.resolve())
+            else:
+                entry = bibtexparser.model.Entry(
+                    entry_type='misc',
+                    key=key,
+                    fields=[
+                        bibtexparser.model.Field(
+                            key='file',
+                            value=str(file_path.resolve()),
+                        )
+                    ],
+                )
+                self._db.add(entry)
 
     def write_bib_file(self):
         """Write BibTeX dictionary to file.
@@ -430,6 +471,19 @@ def edit(library):
     """Subcommand that launches editor on BibTeX file."""
     editor = os.environ.get('EDITOR')
     subprocess.call([editor, library.bibtex_file])
+
+
+@cli.command()
+@click.pass_obj
+@click.argument(
+    'file',
+    type=click.Path(exists=True, dir_okay=False, path_type=pathlib.Path),
+)
+def add(library, file):
+    """Add a file to a BibTeX entry. Creates a new entry if needed."""
+    library.open()
+    library.add_file(file, None)
+    library.write_bib_file()
 
 
 def _get_default_config_path() -> Optional[pathlib.Path]:

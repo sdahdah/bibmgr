@@ -1,2 +1,0 @@
--e git://github.com/aclements/biblib.git#egg=biblib
--e git://github.com/sdahdah/pdflu.git#egg=pdflu

@@ -1,11 +1,18 @@
 """Reference management tools for BibTeX."""
 
+# TODO Sort fields with middleware
+# TODO Sort entries with middleware?
+# TODO LaTeX encoding with middleware?
+# TODO Make paths within library relative
+# TODO Re-implement add and edit
+
 import configparser
 import logging
 import os
 import pathlib
 import shutil
 import string
+import subprocess
 from typing import Optional
 
 import bibtexparser
@@ -408,15 +415,6 @@ def org(library):
     2. renames files according to their BibTeX metadata,
     3. moves files into their corresponding groups, and
     4. updates the BibTeX entry keys based on their fields.
-
-    Parameters
-    ----------
-    lib: Library
-        Library object to operate on.
-    args: argparse.Namespace
-        Arguments to consider.
-    conf: configparser.ConfigParser
-        Parsed config file.
     """
     library.open()
     library.create_missing_groups()
@@ -424,6 +422,14 @@ def org(library):
     library.move_according_to_bib()
     library.rekey_according_to_bib()
     library.write_bib_file()
+
+
+@cli.command()
+@click.pass_obj
+def edit(library):
+    """Subcommand that launches editor on BibTeX file."""
+    editor = os.environ.get('EDITOR')
+    subprocess.call([editor, library.bibtex_file])
 
 
 def _get_default_config_path() -> Optional[pathlib.Path]:

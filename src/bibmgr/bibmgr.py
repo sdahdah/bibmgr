@@ -4,9 +4,6 @@
 # TODO Sort entries with middleware?
 # TODO LaTeX encoding with middleware?
 # TODO Make paths within library relative
-# TODO Re-implement add and edit
-# TODO Update all documentation and help
-# TODO Make type annotations consistent
 
 import configparser
 import logging
@@ -23,8 +20,6 @@ import click
 
 class Library:
     """BibTeX library."""
-
-    dry_run_prefix = '(Dry run)'
 
     def __init__(
         self,
@@ -56,8 +51,7 @@ class Library:
         wrap_width : int
             Maximum line length in the BibTeX file. Wraps if longer.
         dry_run : bool
-            If True, no file operations are actually done (other than reading
-            the BibTeX file).
+            If True, no file operations are actually done.
         """
         # Paths and settings
         self.bibtex_file = pathlib.Path(bibtex_file)
@@ -75,7 +69,7 @@ class Library:
         """Backup file for BibTeX library."""
         return pathlib.Path(str(self.bibtex_file) + '.bak')
 
-    def open(self):
+    def open(self) -> None:
         """Open BibTeX file."""
         if self._db is None:
             logging.info(f'Opening `{self.bibtex_file}`.')
@@ -89,19 +83,26 @@ class Library:
         else:
             logging.info(f'File `{self.bibtex_file}` already open.')
 
-    def print(self):
+    def print(self) -> None:
         """Print BibTeX file."""
-        self._check_open()
-        bib_str = bibtexparser.write_string(self._db)
+        db = self._get_db()
+        bib_str = bibtexparser.write_string(
+            db,
+            prepend_middleware=[
+                bibtexparser.middlewares.MergeNameParts(),
+                bibtexparser.middlewares.MergeCoAuthors(),
+            ],
+        )
         print(bib_str)
 
-    def create_missing_groups(self):
+    def create_missing_groups(self) -> None:
         """Create groups specified by the `group` field.
 
         If any entries exist without a group, the default group is created
         and they are moved there.
         """
-        for entry in self._db.entries:
+        db = self._get_db()
+        for entry in db.entries:
             # If group doesn't exist, set it to the default
             if 'groups' in entry:
                 group_path = self.storage_path.joinpath(entry['groups'])
@@ -110,8 +111,7 @@ class Library:
             # If folder does not already exist, create it.
             if not group_path.exists():
                 if self.dry_run:
-                    logging.info(
-                        f'{self.dry_run_prefix} Creating `{group_path}`.')
+                    self._dry_run_msg(f'Creating `{group_path}`.')
                 else:
                     logging.info(f'Creating `{group_path}`.')
                     group_path.mkdir()
@@ -119,7 +119,7 @@ class Library:
                 logging.debug(
                     f'Directory `{group_path}` already exists. Skipping.')
 
-    def rename_according_to_bib(self):
+    def rename_according_to_bib(self) -> None:
         """Generate a new file name for each entry.
 
         File name format is `author_year_title`. Renames the files that don't
@@ -127,7 +127,8 @@ class Library:
         `title` BibTeX fields are missing, they are skipped. If the new name
         generated is empty, it is skipped.
         """
-        for entry in self._db.entries:
+        db = self._get_db()
+        for entry in db.entries:
             # Skip entries with invalid files.
             # Logging takes place inside helper function!
             if not self._entry_file_is_valid(entry):
@@ -161,9 +162,10 @@ class Library:
                 self._move_file(old_path, new_path)
             entry['file'] = str(new_path)
 
-    def move_according_to_bib(self):
+    def move_according_to_bib(self) -> None:
         """Move files to group specified in BibTeX file."""
-        for entry in self._db.entries:
+        db = self._get_db()
+        for entry in db.entries:
             # Skip entries with invalid files.
             # Logging takes place inside helper function.
             if not self._entry_file_is_valid(entry):
@@ -187,14 +189,15 @@ class Library:
                 self._move_file(old_path, new_path)
             entry['file'] = str(new_path)
 
-    def rekey_according_to_bib(self):
+    def rekey_according_to_bib(self) -> None:
         """Generate a new key for each entry in the BibTeX file.
 
         Format is `author_year_first-word-of-title`.
         Handles duplicates by appending `_dup` to the keys.
         """
+        db = self._get_db()
         new_db = bibtexparser.Library()
-        for entry in self._db.entries:
+        for entry in db.entries:
             # Use helper to generate a new key
             new_key = self._entry_string(
                 entry,
@@ -208,7 +211,7 @@ class Library:
                 new_key = entry.key
             # If there's a duplicate, change the name
             if new_key != entry.key:
-                while new_key in self._db.entries_dict.keys():
+                while new_key in db.entries_dict.keys():
                     logging.warn(f'Two entires share the key `{entry.key}`. '
                                  'Appending `_dup` to second entry.')
                     new_key += '_dup'
@@ -218,19 +221,12 @@ class Library:
             new_db.add(entry)
         self._db = new_db
 
-    def add_file(self, file, key=None):
+    def add_file(self, file: str, key: Optional[str] = None) -> None:
         """Update the `file` field in a BibTeX entry.
 
         Creates a new entry if no key is specified.
-
-        Parameters
-        ----------
-        file: str
-            Path to file to be added.
-        key: str
-            Key of entry to be added. If `None`, new entry is created with
-            filename as key.
         """
+        db = self._get_db()
         # Read path and set default key
         file_path = pathlib.Path(file)
         if key is None:
@@ -242,8 +238,8 @@ class Library:
         elif not file_path.is_file():
             logging.warning(f'{file_path} is not a file. Not adding.')
         else:
-            if key in self._db.entries_dict.keys():
-                self._db.entries_dict[key]['file'] = str(file_path.resolve())
+            if key in db.entries_dict.keys():
+                db.entries_dict[key]['file'] = str(file_path.resolve())
             else:
                 entry = bibtexparser.model.Entry(
                     entry_type='misc',
@@ -255,21 +251,19 @@ class Library:
                         )
                     ],
                 )
-                self._db.add(entry)
+                db.add(entry)
 
-    def write_bib_file(self):
+    def write_bib_file(self) -> None:
         """Write BibTeX dictionary to file.
 
         If dry_run is specified, skips file operations.
         """
+        db = self._get_db()
         if self.dry_run:
-            logging.info(
-                f'{self.dry_run_prefix} Deleting `{self.bibtex_bak_file}`.')
-            logging.info(
-                f'{self.dry_run_prefix} Moving `{self.bibtex_file}` to '
-                f'`{self.bibtex_bak_file}`.')
-            logging.info(
-                f'{self.dry_run_prefix} Writing `{self.bibtex_file}`.')
+            self._dry_run_msg(f'Deleting `{self.bibtex_bak_file}`.')
+            self._dry_run_msg(
+                f'Moving `{self.bibtex_file}` to `{self.bibtex_bak_file}`.')
+            self._dry_run_msg(f'Writing `{self.bibtex_file}`.')
         else:
             # Delete .bak file if it exists
             logging.info(f'Deleting `{self.bibtex_bak_file}`.')
@@ -283,26 +277,30 @@ class Library:
             logging.info(f'Writing `{self.bibtex_file}`.')
             bibtexparser.write_file(
                 str(self.bibtex_file.resolve()),
-                self._db,
+                db,
                 append_middleware=[
                     bibtexparser.middlewares.MergeNameParts(),
                     bibtexparser.middlewares.MergeCoAuthors(),
                 ],
             )
 
-    def _check_open(self):
+    def _get_db(self) -> bibtexparser.Library:
         """Raise error if BibTeX file is not open."""
         if self._db is None:
             raise RuntimeError('Must call `open()` to open BibTeX file.')
+        return self._db
 
-    def _move_file(self, old_file, new_file):
+    def _move_file(
+        self,
+        old_file: pathlib.Path,
+        new_file: pathlib.Path,
+    ) -> None:
         """Move files but refuse to move directories.
 
         Also used for renaming. If dry_run is specified, skips file operations.
         """
         if self.dry_run:
-            logging.info(
-                f'{self.dry_run_prefix} Moving `{old_file}` to `{new_file}`.')
+            self._dry_run_msg(f'Moving `{old_file}` to `{new_file}`.')
         elif not old_file.exists():
             logging.warning(f'{old_file} does not exist. Not moving.')
         elif not old_file.is_file():
@@ -312,24 +310,20 @@ class Library:
             shutil.move(old_file, new_file)
 
     @staticmethod
+    def _dry_run_msg(s: str) -> None:
+        """Print dry run info message."""
+        logging.info('(Dry run) ' + s)
+
+    @staticmethod
     def _entry_file_is_valid(entry: bibtexparser.model.Entry) -> bool:
         """Check the validity of a `file` field of an entry.
 
-        Ensures that
-        1. the entry has a `file` field,
-        2. the `file` field is nonempty,
-        3. the file pointed to exists, and
-        4. the file pointed to is a file, not a directory.
+        Ensures that::
 
-        Parameters
-        ----------
-        entry : bibtexparser.model.Entry
-            Entry to check.
-
-        Returns
-        -------
-        bool:
-            True if the file is valid by the above definitions.
+            1. the entry has a `file` field,
+            2. the `file` field is nonempty,
+            3. the file pointed to exists, and
+            4. the file pointed to is a file, not a directory.
         """
         if 'file' not in entry:
             logging.warn(f'No file in entry with key `{entry.key}`. Skipping.')
@@ -358,21 +352,6 @@ class Library:
 
         Used for filenames and BibTeX keys. If any of the `author`, `year`, or
         `title` fields are empty or not present, they are skipped.
-
-        Parameters
-        ----------
-        entry: bibtexparser.model.Entry
-            Entry to generate string from.
-        max_length: int
-            Maximum number of characters in the string
-        words_from_title: int
-            Maximum number of words to use from title. If `None`, uses whole
-            title. For filenames, `None` is used. For BibTeX keys, `1` is used.
-
-        Returns
-        -------
-        str:
-            String with format `author_year_title` based on entry.
         """
         string_components = []
         if 'author' in entry:
@@ -426,37 +405,36 @@ def cli(ctx, verbose, debug, dry_run, config, library):
     else:
         selected_lib = library
     # Create library
-    ctx.obj = Library(
-        conf[selected_lib]['bibtex_file'],
-        conf[selected_lib]['storage_path'],
-        conf[selected_lib]['default_group'],
-        conf.getint('config', 'filename_words'),
-        conf.getint('config', 'filename_length'),
-        conf.getint('config', 'key_length'),
-        conf.getint('config', 'wrap_width'),
-        dry_run,
-    )
+    ctx.obj = {
+        'library':
+        Library(
+            conf[selected_lib]['bibtex_file'],
+            conf[selected_lib]['storage_path'],
+            conf[selected_lib]['default_group'],
+            conf.getint('config', 'filename_words'),
+            conf.getint('config', 'filename_length'),
+            conf.getint('config', 'key_length'),
+            conf.getint('config', 'wrap_width'),
+            dry_run,
+        ),
+        'config': conf,
+    }
 
 
 @cli.command()
 @click.pass_obj
-def echo(library):
-    """Parse and print BibTeX file to stdout."""
+def echo(obj):
+    """Print BibTeX library."""
+    library = obj['library']
     library.open()
     library.print()
 
 
 @cli.command()
 @click.pass_obj
-def org(library):
-    """Subcommand that organizes library files.
-
-    Specifically, the command
-    1. creates missing group directories,
-    2. renames files according to their BibTeX metadata,
-    3. moves files into their corresponding groups, and
-    4. updates the BibTeX entry keys based on their fields.
-    """
+def org(obj):
+    """Organize BibTeX library and linked files."""
+    library = obj['library']
     library.open()
     library.create_missing_groups()
     library.rename_according_to_bib()
@@ -467,9 +445,12 @@ def org(library):
 
 @cli.command()
 @click.pass_obj
-def edit(library):
-    """Subcommand that launches editor on BibTeX file."""
-    editor = os.environ.get('EDITOR')
+def edit(obj):
+    """Open BibTeX library in text editor."""
+    library = obj['library']
+    conf_editor = obj['config']['config']['editor']
+    env_editor = os.environ.get('EDITOR')
+    editor = env_editor if conf_editor is None else conf_editor
     subprocess.call([editor, library.bibtex_file])
 
 
@@ -479,21 +460,16 @@ def edit(library):
     'file',
     type=click.Path(exists=True, dir_okay=False, path_type=pathlib.Path),
 )
-def add(library, file):
-    """Add a file to a BibTeX entry. Creates a new entry if needed."""
+def add(obj, file):
+    """Add linked file to BibTeX library."""
+    library = obj['library']
     library.open()
     library.add_file(file, None)
     library.write_bib_file()
 
 
 def _get_default_config_path() -> Optional[pathlib.Path]:
-    """Get default config path.
-
-    Returns
-    -------
-    Optional[pathlib.Path]
-        Default configuration path if it can be determined, otherwise ``None``.
-    """
+    """Get default config path."""
     config_file = 'bibmgr/bibmgr.conf'
     if os.name == 'posix':
         # Use XDG default if specified
@@ -521,21 +497,12 @@ def _get_default_config_path() -> Optional[pathlib.Path]:
 def _clean_string(s: str) -> str:
     """Clean up a string.
 
-    Specifically, cleaning up a string entails
-    1. making it lowercase,
-    2. replacing spaces with underscores, and
-    3. removing any characters that are not lowercase letters, numbers, or
-       underscores.
+    Specifically, cleaning up a string entails::
 
-    Parameters
-    ----------
-    s: str
-        String to clean up.
-
-    Returns
-    -------
-    str:
-        Cleaned up string according to above definition.
+        1. making it lowercase,
+        2. replacing spaces with underscores, and
+        3. removing any characters that are not lowercase letters, numbers, or
+           underscores.
     """
     valid = string.ascii_lowercase + string.digits + '_'
     s_nospace = s.lower().replace(' ', '_')
@@ -548,16 +515,6 @@ def _get_extension(path: pathlib.Path) -> str:
 
     Assumes all extensions except ``.tar.gz`` and ``.tar.bz2`` are single
     extensions.
-
-    Parameters
-    ----------
-    path: pathlib.Path
-        Path to file.
-
-    Returns
-    -------
-    str:
-        File extension.
     """
     known_double_extensions = ['.tar.gz', '.tar.bz2']
     # If extension is not a known double extension, take last part only.

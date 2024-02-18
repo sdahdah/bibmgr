@@ -336,12 +336,9 @@ class Library:
     def _entry_file_is_valid(entry: bibtexparser.model.Entry) -> bool:
         """Check the validity of a `file` field of an entry.
 
-        Ensures that::
-
-            1. the entry has a `file` field,
-            2. the `file` field is nonempty,
-            3. the file pointed to exists, and
-            4. the file pointed to is a file, not a directory.
+        Ensures that the entry has a `file` field, the `file` field is
+        nonempty, the file pointed to exists, and the file pointed to is
+        a file, not a directory.
         """
         if 'file' not in entry:
             logging.warn(f'No file in entry with key `{entry.key}`. Skipping.')
@@ -517,12 +514,8 @@ def _get_default_config_path() -> Optional[pathlib.Path]:
 def _clean_string(s: str) -> str:
     """Clean up a string.
 
-    Specifically, cleaning up a string entails::
-
-        1. making it lowercase,
-        2. replacing spaces with underscores, and
-        3. removing any characters that are not lowercase letters, numbers, or
-           underscores.
+    Makes the string lowercase, replaces spaces with underscores, and removes
+    characters that are not lowercase letters, numbers, or underscores.
     """
     valid = string.ascii_lowercase + string.digits + '_'
     s_nospace = s.lower().replace(' ', '_')

@@ -1,8 +1,5 @@
 """Reference management tools for BibTeX."""
 
-# TODO Sort fields with middleware
-# TODO Sort entries with middleware?
-# TODO LaTeX encoding with middleware?
 # TODO Make paths within library relative
 
 import configparser
@@ -12,7 +9,7 @@ import pathlib
 import shutil
 import string
 import subprocess
-from typing import Optional
+from typing import List, Optional
 
 import bibtexparser
 import click
@@ -30,6 +27,7 @@ class Library:
         filename_length: int,
         key_length: int,
         wrap_width: int,
+        field_order: List[str],
         dry_run: bool,
     ) -> None:
         """Instantiate ``Library``.
@@ -50,6 +48,8 @@ class Library:
             Maximum number of characters in a BibTeX key.
         wrap_width : int
             Maximum line length in the BibTeX file. Wraps if longer.
+        field_order : List[str]
+            Field order.
         dry_run : bool
             If True, no file operations are actually done.
         """
@@ -61,8 +61,14 @@ class Library:
         self.filename_length = filename_length
         self.key_length = key_length
         self.wrap_width = wrap_width
+        self.field_order = field_order
         self.dry_run = dry_run
-        self._db = None
+        self._db: Optional[bibtexparser.Library] = None
+        # TODO
+        self._bibtex_format = bibtexparser.BibtexFormat()
+        self._bibtex_format.indent = '    '
+        self._bibtex_format.block_separator = '\n'
+        self._bibtex_format.trailing_comma = True
 
     @property
     def bibtex_bak_file(self) -> pathlib.Path:
@@ -74,12 +80,18 @@ class Library:
         if self._db is None:
             logging.info(f'Opening `{self.bibtex_file}`.')
             self._db = bibtexparser.parse_file(
-                self.bibtex_file,
+                str(self.bibtex_file.resolve()),
                 append_middleware=[
                     bibtexparser.middlewares.SeparateCoAuthors(),
                     bibtexparser.middlewares.SplitNameParts(),
                 ],
             )
+            if len(self._db.failed_blocks) > 0:
+                failed_blocks = [
+                    block.start_line for block in self._db.failed_blocks
+                ]
+                logging.warning(
+                    f'Failed to parse blocks on lines: {failed_blocks}')
         else:
             logging.info(f'File `{self.bibtex_file}` already open.')
 
@@ -91,7 +103,10 @@ class Library:
             prepend_middleware=[
                 bibtexparser.middlewares.MergeNameParts(),
                 bibtexparser.middlewares.MergeCoAuthors(),
+                bibtexparser.middlewares.SortFieldsCustomMiddleware(
+                    order=tuple(self.field_order)),
             ],
+            bibtex_format=self._bibtex_format,
         )
         print(bib_str)
 
@@ -174,8 +189,8 @@ class Library:
             if 'groups' not in entry:
                 entry['groups'] = self.default_group
             old_path = pathlib.Path(entry['file'])
-            new_path = self.storage_path.joinpath(entry['groups']).joinpath(
-                old_path.name)
+            new_path = self.storage_path.joinpath(entry['groups'],
+                                                  old_path.name)
             # Double check if path points to a file to avoid accidentally
             # moving directory. `is_file()` is the most important check here.
             if old_path == new_path:
@@ -281,7 +296,10 @@ class Library:
                 append_middleware=[
                     bibtexparser.middlewares.MergeNameParts(),
                     bibtexparser.middlewares.MergeCoAuthors(),
+                    bibtexparser.middlewares.SortFieldsCustomMiddleware(
+                        order=tuple(self.field_order)),
                 ],
+                bibtex_format=self._bibtex_format,
             )
 
     def _get_db(self) -> bibtexparser.Library:
@@ -415,9 +433,11 @@ def cli(ctx, verbose, debug, dry_run, config, library):
             conf.getint('config', 'filename_length'),
             conf.getint('config', 'key_length'),
             conf.getint('config', 'wrap_width'),
+            conf['config']['field_order'].split(', '),
             dry_run,
         ),
-        'config': conf,
+        'config':
+        conf,
     }
 
 

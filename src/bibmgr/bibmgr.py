@@ -28,31 +28,10 @@ class Library:
         key_length: int,
         wrap_width: int,
         field_order: List[str],
+        mandatory_fields: List[str],
         dry_run: bool,
     ) -> None:
-        """Instantiate ``Library``.
-
-        Parameters
-        ----------
-        bibtex_file : pathlib.Path
-            Path to BibTeX file.
-        storage_path : pathlib.Path
-            Path to folder where added files are stored.
-        default_group : str
-            Group where files that have no associated group are stored.
-        filename_words : int
-            Maximum number of words from title to use in filename.
-        filename_length : int
-            Maximum number of characters in a filename.
-        key_length : int
-            Maximum number of characters in a BibTeX key.
-        wrap_width : int
-            Maximum line length in the BibTeX file. Wraps if longer.
-        field_order : List[str]
-            Field order.
-        dry_run : bool
-            If True, no file operations are actually done.
-        """
+        """Instantiate ``Library``."""
         # Paths and settings
         self.bibtex_file = pathlib.Path(bibtex_file)
         self.storage_path = pathlib.Path(storage_path)
@@ -62,9 +41,11 @@ class Library:
         self.key_length = key_length
         self.wrap_width = wrap_width
         self.field_order = field_order
+        self.mandatory_fields = mandatory_fields
         self.dry_run = dry_run
+        # Set up database
         self._db: Optional[bibtexparser.Library] = None
-        # TODO
+        # Set up BibTeX format
         self._bibtex_format = bibtexparser.BibtexFormat()
         self._bibtex_format.indent = '    '
         self._bibtex_format.block_separator = '\n'
@@ -133,6 +114,14 @@ class Library:
             else:
                 logging.debug(
                     f'Directory `{group_path}` already exists. Skipping.')
+
+    def create_missing_fields(self) -> None:
+        """Create missing fields."""
+        db = self._get_db()
+        for entry in db.entries:
+            for field in self.mandatory_fields:
+                if field not in entry:
+                    entry[field] = ''
 
     def rename_according_to_bib(self) -> None:
         """Generate a new file name for each entry.
@@ -431,6 +420,7 @@ def cli(ctx, verbose, debug, dry_run, config, library):
             conf.getint('config', 'key_length'),
             conf.getint('config', 'wrap_width'),
             conf['config']['field_order'].split(', '),
+            conf['config']['mandatory_fields'].split(', '),
             dry_run,
         ),
         'config':
@@ -454,6 +444,7 @@ def org(obj):
     library = obj['library']
     library.open()
     library.create_missing_groups()
+    library.create_missing_fields()
     library.rename_according_to_bib()
     library.move_according_to_bib()
     library.rekey_according_to_bib()

@@ -11,7 +11,7 @@ from typing import Optional
 
 import click
 
-from . import library_model, search
+from . import library_model, search, parse
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -110,11 +110,11 @@ def edit(obj):
 
 
 @cli.command()
-@click.pass_obj
 @click.argument(
     'file',
     type=click.Path(exists=True, dir_okay=False, path_type=pathlib.Path),
 )
+@click.pass_obj
 def add(obj, file):
     """Add linked file to BibTeX library."""
     library = obj['library']
@@ -123,11 +123,17 @@ def add(obj, file):
     library.write_bib_file()
 
 
-@cli.command()
-@click.pass_obj
-def lookup(obj):
-    """TODO."""
-    pass
+# TODO
+# @cli.command()
+# @click.argument(
+#     'file',
+#     type=click.Path(exists=True, dir_okay=False, path_type=pathlib.Path),
+# )
+# @click.pass_obj
+# def lookup(obj, file):
+#     """TODO."""
+#     print(parse._parse_filename(file))
+#     print(parse._parse_pdf_metadata(file))
 
 
 def _get_default_config_path() -> Optional[pathlib.Path]:

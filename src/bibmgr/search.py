@@ -53,7 +53,7 @@ class CrossrefResult():
             if (self.doi is None) or (self.doi == ''):
                 given = self.author.split(' ')[0]
                 title = self.title.split(' ')[0]
-                key = utilities.clean_string(given + '_' + title)
+                key = utilities.clean_string_for_key(given + '_' + title)
                 self._bibtex = bibtexparser.model.Entry(
                     entry_type='misc',
                     key=key,
@@ -111,7 +111,7 @@ class ArxivResult():
             if (self.doi is None) or (self.doi == ''):
                 given = self.author.split(' ')[0]
                 title = self.title.split(' ')[0]
-                key = utilities.clean_string(given + '_' + title)
+                key = utilities.clean_string_for_key(given + '_' + title)
                 id = self.raw.entry_id.split('/')[-1]
                 cat = self.raw.primary_category
                 if (cat is None) or (cat == ''):

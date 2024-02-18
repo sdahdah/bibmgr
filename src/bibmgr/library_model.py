@@ -230,7 +230,7 @@ class Library:
         # Read path and set default key
         file_path = pathlib.Path(file)
         if key is None:
-            key = utilities.clean_string(file_path.stem)
+            key = utilities.clean_string_for_key(file_path.stem)
         key = key.lower()
         # Check validity of PDF path, then link if valid.
         if not file_path.exists():
@@ -357,18 +357,19 @@ class Library:
         if 'author' in entry:
             # Last name of first author
             string_components.append(
-                utilities.clean_string(entry['author'][0].last[0]))
+                utilities.clean_string_for_key(entry['author'][0].last[0]))
         if 'year' in entry:
-            string_components.append(utilities.clean_string(entry['year']))
+            string_components.append(
+                utilities.clean_string_for_key(entry['year']))
         if 'title' in entry:
             if words_from_title is None:
                 # Take all of title
-                string_components.append(utilities.clean_string(
-                    entry['title']))
+                string_components.append(
+                    utilities.clean_string_for_key(entry['title']))
             else:
                 # Take up to `words_from_title` words from title
                 string_components.append(
-                    utilities.clean_string('_'.join(
+                    utilities.clean_string_for_key('_'.join(
                         entry['title'].split(' ')[:words_from_title])))
         entry_string = '_'.join(string_components)[:max_length]
         return entry_string

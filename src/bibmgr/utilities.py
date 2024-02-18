@@ -4,14 +4,26 @@ import pathlib
 import string
 
 
-def clean_string(s: str) -> str:
-    """Clean up a string.
+def clean_string_for_key(s: str) -> str:
+    """Clean up a string for a key or filename.
 
     Makes the string lowercase, replaces spaces with underscores, and removes
     characters that are not lowercase letters, numbers, or underscores.
     """
     valid = string.ascii_lowercase + string.digits + '_'
     s_nospace = s.lower().replace(' ', '_')
+    s_clean = ''.join(char for char in s_nospace if char in valid)
+    return s_clean
+
+
+def clean_string_for_query(s: str) -> str:
+    """Clean up a string for a query.
+
+    Makes the string lowercase, replaces underscores and dashes with spaces,
+    and removes characters that are not lowercase letters, numbers, or spaces.
+    """
+    valid = string.ascii_lowercase + string.digits + ' '
+    s_nospace = s.lower().replace('_', ' ').replace('-', ' ')
     s_clean = ''.join(char for char in s_nospace if char in valid)
     return s_clean
 

@@ -164,6 +164,20 @@ def query_crossref(
     return crossref_results
 
 
+def query_crossref_doi(
+    doi: str,
+    mailto: Optional[str] = None,
+) -> List[CrossrefResult]:
+    """Query Crossref by DOI."""
+    crossref = habanero.Crossref(mailto=mailto)
+    results = crossref.works(ids=doi, warn=True)
+    if results is None:
+        return []
+    else:
+        crossref_results = [CrossrefResult(results['message'])]
+        return crossref_results
+
+
 def query_arxiv(
     query: str,
     limit: int,

@@ -1,12 +1,13 @@
-"""Library object."""
+"""BibTeX library manipulation."""
 
 import logging
 import pathlib
 import shutil
-import string
 from typing import List, Optional
 
 import bibtexparser
+
+from . import utilities
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -145,7 +146,7 @@ class Library:
                 continue
             # Get old path from entry and extract extension.
             old_path = pathlib.Path(entry['file'])
-            ext = _get_extension(old_path)
+            ext = utilities.get_extension(old_path)
             # Create new path with new filename (keep extension and location)
             new_path = old_path.parent.joinpath(filename + ext)
             # Double check if path points to a file to avoid accidentally
@@ -229,7 +230,7 @@ class Library:
         # Read path and set default key
         file_path = pathlib.Path(file)
         if key is None:
-            key = _clean_string(file_path.stem)
+            key = utilities.clean_string(file_path.stem)
         key = key.lower()
         # Check validity of PDF path, then link if valid.
         if not file_path.exists():
@@ -355,45 +356,19 @@ class Library:
         string_components = []
         if 'author' in entry:
             # Last name of first author
-            string_components.append(_clean_string(entry['author'][0].last[0]))
+            string_components.append(
+                utilities.clean_string(entry['author'][0].last[0]))
         if 'year' in entry:
-            string_components.append(_clean_string(entry['year']))
+            string_components.append(utilities.clean_string(entry['year']))
         if 'title' in entry:
             if words_from_title is None:
                 # Take all of title
-                string_components.append(_clean_string(entry['title']))
+                string_components.append(utilities.clean_string(
+                    entry['title']))
             else:
                 # Take up to `words_from_title` words from title
                 string_components.append(
-                    _clean_string('_'.join(
+                    utilities.clean_string('_'.join(
                         entry['title'].split(' ')[:words_from_title])))
         entry_string = '_'.join(string_components)[:max_length]
         return entry_string
-
-
-def _clean_string(s: str) -> str:
-    """Clean up a string.
-
-    Makes the string lowercase, replaces spaces with underscores, and removes
-    characters that are not lowercase letters, numbers, or underscores.
-    """
-    valid = string.ascii_lowercase + string.digits + '_'
-    s_nospace = s.lower().replace(' ', '_')
-    s_clean = ''.join(char for char in s_nospace if char in valid)
-    return s_clean
-
-
-def _get_extension(path: pathlib.Path) -> str:
-    """Get the extension of a path.
-
-    Assumes all extensions except ``.tar.gz`` and ``.tar.bz2`` are single
-    extensions.
-    """
-    known_double_extensions = ['.tar.gz', '.tar.bz2']
-    # If extension is not a known double extension, take last part only.
-    extensions = ''.join(path.suffixes)
-    if extensions in known_double_extensions:
-        ext = extensions
-    else:
-        ext = path.suffixes[-1]
-    return ext

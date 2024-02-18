@@ -11,7 +11,7 @@ from typing import Optional
 
 import click
 
-from . import library_model
+from . import library_model, search
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -121,6 +121,13 @@ def add(obj, file):
     library.open()
     library.add_file(file, None)
     library.write_bib_file()
+
+
+@cli.command()
+@click.pass_obj
+def lookup(obj):
+    """TODO."""
+    pass
 
 
 def _get_default_config_path() -> Optional[pathlib.Path]:

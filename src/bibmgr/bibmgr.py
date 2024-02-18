@@ -377,16 +377,23 @@ class Library:
 
 
 @click.group()
-@click.option('--verbose', is_flag=True, help='')
-@click.option('--debug', is_flag=True, help='')
-@click.option('--dry-run', is_flag=True, help='')
+@click.option('--verbose', is_flag=True, help='Print detailed output.')
+@click.option('--debug', is_flag=True, help='Print debug information.')
+@click.option('--dry-run',
+              is_flag=True,
+              help='Run command without moving or writing to any files.')
 @click.option(
     '-c',
     '--config',
     type=click.Path(exists=True, dir_okay=False, path_type=pathlib.Path),
-    help='',
+    help='Specify configuration file.',
 )
-@click.option('-L', '--library', type=str, help='')
+@click.option(
+    '-L',
+    '--library',
+    type=str,
+    help='Select library, as specified in config.',
+)
 @click.pass_context
 def cli(ctx, verbose, debug, dry_run, config, library):
     """Manage BibTeX references."""

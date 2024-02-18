@@ -26,7 +26,6 @@ class Library:
         filename_words: int,
         filename_length: int,
         key_length: int,
-        wrap_width: int,
         field_order: List[str],
         mandatory_fields: List[str],
         dry_run: bool,
@@ -39,7 +38,6 @@ class Library:
         self.filename_words = filename_words
         self.filename_length = filename_length
         self.key_length = key_length
-        self.wrap_width = wrap_width
         self.field_order = field_order
         self.mandatory_fields = mandatory_fields
         self.dry_run = dry_run
@@ -425,7 +423,6 @@ def cli(ctx, verbose, debug, dry_run, config, library):
             conf.getint('bibmgr', 'filename_words'),
             conf.getint('bibmgr', 'filename_length'),
             conf.getint('bibmgr', 'key_length'),
-            conf.getint('bibmgr', 'wrap_width'),
             conf['bibmgr']['field_order'].split(', '),
             conf['bibmgr']['mandatory_fields'].split(', '),
             dry_run,

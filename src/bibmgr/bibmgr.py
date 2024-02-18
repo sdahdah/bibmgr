@@ -100,7 +100,7 @@ class Library:
         db = self._get_db()
         for entry in db.entries:
             # If group doesn't exist, set it to the default
-            if 'groups' in entry:
+            if ('groups' in entry) and (entry['groups'] != ''):
                 group_path = self.storage_path.joinpath(entry['groups'])
             else:
                 group_path = self.storage_path.joinpath(self.default_group)
@@ -412,7 +412,7 @@ def cli(ctx, verbose, debug, dry_run, config, library):
     conf = configparser.ConfigParser()
     conf.read(_get_default_config_path() if config is None else config)
     if library is None:
-        selected_lib = conf['config']['default_library']
+        selected_lib = conf['bibmgr']['default_library']
     else:
         selected_lib = library
     # Create library
@@ -422,12 +422,12 @@ def cli(ctx, verbose, debug, dry_run, config, library):
             conf[selected_lib]['bibtex_file'],
             conf[selected_lib]['storage_path'],
             conf[selected_lib]['default_group'],
-            conf.getint('config', 'filename_words'),
-            conf.getint('config', 'filename_length'),
-            conf.getint('config', 'key_length'),
-            conf.getint('config', 'wrap_width'),
-            conf['config']['field_order'].split(', '),
-            conf['config']['mandatory_fields'].split(', '),
+            conf.getint('bibmgr', 'filename_words'),
+            conf.getint('bibmgr', 'filename_length'),
+            conf.getint('bibmgr', 'key_length'),
+            conf.getint('bibmgr', 'wrap_width'),
+            conf['bibmgr']['field_order'].split(', '),
+            conf['bibmgr']['mandatory_fields'].split(', '),
             dry_run,
         ),
         'config':
@@ -463,7 +463,7 @@ def org(obj):
 def edit(obj):
     """Open BibTeX library in text editor."""
     library = obj['library']
-    conf_editor = obj['config']['config']['editor']
+    conf_editor = obj['config']['bibmgr']['editor']
     env_editor = os.environ.get('EDITOR')
     editor = env_editor if conf_editor is None else conf_editor
     subprocess.call([editor, library.bibtex_file])

@@ -117,7 +117,12 @@ class Library:
         for entry in db.entries:
             for field in self.mandatory_fields:
                 if field not in entry:
-                    entry[field] = ''
+                    if field == 'author':
+                        entry[field] = []
+                    elif field == 'groups':
+                        entry[field] = self.default_group
+                    else:
+                        entry[field] = ''
 
     def rename_according_to_bib(self) -> None:
         """Generate a new file name for each entry.
@@ -140,7 +145,7 @@ class Library:
                 words_from_title=self.filename_words,
             )
             # If the new filename is empty skip.
-            if filename == '':
+            if (filename is None) or (filename == ''):
                 log.warn('Cannot generate new file name for entry with '
                          f'key `{entry.key}`. Skipping.')
                 continue
@@ -173,9 +178,13 @@ class Library:
             # Add default group
             if 'groups' not in entry:
                 entry['groups'] = self.default_group
+            elif entry['groups'] == '':
+                entry['groups'] = self.default_group
             old_path = pathlib.Path(entry['file'])
-            new_path = self.storage_path.joinpath(entry['groups'],
-                                                  old_path.name)
+            new_path = self.storage_path.joinpath(
+                entry['groups'],
+                old_path.name,
+            )
             # Double check if path points to a file to avoid accidentally
             # moving directory. `is_file()` is the most important check here.
             if old_path == new_path:
@@ -205,7 +214,7 @@ class Library:
                 words_from_title=1,
             )
             # If new key is empty, don't change it
-            if new_key == '':
+            if (new_key is None) or (new_key == ''):
                 log.warn('Cannot generate new key for entry with key '
                          f'`{entry.key}`. Skipping.')
                 new_key = entry.key
@@ -347,21 +356,21 @@ class Library:
         entry: bibtexparser.model.Entry,
         max_length: int,
         words_from_title: Optional[int] = None,
-    ) -> str:
+    ) -> Optional[str]:
         """Return string with format author_year_title.
 
         Used for filenames and BibTeX keys. If any of the `author`, `year`, or
         `title` fields are empty or not present, they are skipped.
         """
         string_components = []
-        if 'author' in entry:
+        if ('author' in entry) and (len(entry['author']) > 0):
             # Last name of first author
-            string_components.append(
-                utilities.clean_string_for_key(entry['author'][0].last[0]))
-        if 'year' in entry:
+            last_name = entry['author'][0].last[0]
+            string_components.append(utilities.clean_string_for_key(last_name))
+        if ('year' in entry) and (entry['year'] != ''):
             string_components.append(
                 utilities.clean_string_for_key(entry['year']))
-        if 'title' in entry:
+        if ('title' in entry) and (entry['title'] != ''):
             if words_from_title is None:
                 # Take all of title
                 string_components.append(
@@ -371,5 +380,8 @@ class Library:
                 string_components.append(
                     utilities.clean_string_for_key('_'.join(
                         entry['title'].split(' ')[:words_from_title])))
-        entry_string = '_'.join(string_components)[:max_length]
+        if len(string_components) > 0:
+            entry_string = '_'.join(string_components)[:max_length]
+        else:
+            entry_string = None
         return entry_string

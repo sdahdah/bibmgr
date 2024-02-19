@@ -1,7 +1,5 @@
 """Reference management tools for BibTeX."""
 
-# TODO Make paths within library relative
-
 import configparser
 import logging
 import os
@@ -112,15 +110,17 @@ def edit(obj):
 
 @cli.command()
 @click.argument(
-    'file',
+    'files',
     type=click.Path(exists=True, dir_okay=False, path_type=pathlib.Path),
+    nargs=-1,
 )
 @click.pass_obj
-def add(obj, file):
-    """Add linked file to BibTeX library."""
+def add(obj, files):
+    """Add linked files to BibTeX library."""
     library = obj['library']
     library.open()
-    library.add_file(file, None)
+    for file in files:
+        library.add_file(file, None)
     library.write_bib_file()
 
 
@@ -147,7 +147,6 @@ def lookup(obj, file):
         new_db.add(entry.get_bibtex())
     a = bibtexparser.write_string(new_db)
     print(a)
-    # TODO
 
 
 def _get_default_config_path() -> Optional[pathlib.Path]:

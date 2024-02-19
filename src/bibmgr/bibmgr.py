@@ -5,12 +5,12 @@ import logging
 import os
 import pathlib
 import subprocess
-from typing import Optional
+from typing import Optional, Sequence
 
 import bibtexparser
 import click
 
-from . import library_model, parse, search
+from . import library_model, parse, search, utilities
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -122,29 +122,15 @@ def edit(obj):
 @click.pass_obj
 def add(obj, files, key):
     """Add linked files to BibTeX library."""
+    # TODO Configuration settings
+    # TODO Option to skip
     library = obj['library']
     library.open()
     for file in files:
         new_key = library.add_file(file, key)
-
-        metadata = parse.parse_pdf(file)
-        if metadata.doi:
-            entries = search.query_crossref_doi(metadata.doi)
-        elif metadata.arxiv_id:
-            entries = search.query_arxiv_id(metadata.arxiv_id)
-        else:
-            query = metadata.title + ' ' + metadata.author
-            entries_crossref = search.query_crossref(query, limit=2)
-            entries_arxiv = search.query_arxiv(query, limit=2)
-            entries = entries_crossref + entries_arxiv
-
-        x = library.update_entry(new_key, entries[0].get_entry())
-        print(x['old'])
-        print('---')
-        print(x['new'])
-        print('---')
-        print(x['merged'])
-        print('---')
+        entries = _query_file(file)
+        if entries:
+            library.update_entry(new_key, entries[0].get_entry())
     library.write_bib_file()
 
 
@@ -171,6 +157,36 @@ def lookup(obj, file):
         new_db.add(entry.get_entry())
     a = bibtexparser.write_string(new_db)
     print(a)
+
+
+def _query_file(
+    path: pathlib.Path,
+    limit: int = 10,
+    mailto: Optional[str] = None,
+) -> Sequence[search.SearchResult]:
+    """Query by file."""
+    # Get metadata
+    metadata = parse.parse_pdf(path)
+    # Search by DOI first
+    entries: Sequence[search.SearchResult]
+    if metadata.doi:
+        entries = search.query_crossref_doi(metadata.doi, mailto=mailto)
+        if entries:
+            return entries
+    # Search by arXiv ID if no DOI
+    if metadata.arxiv_id:
+        entries = search.query_arxiv_id(metadata.arxiv_id)
+        if entries:
+            return entries
+    # Fall back on text query
+    query_title = utilities.clean_string_for_query(metadata.title)
+    query_author = utilities.clean_string_for_query(metadata.author)
+    query = query_title + query_author
+    entries_crossref = search.query_crossref(query, limit=limit, mailto=mailto)
+    entries_arxiv = search.query_arxiv(query, limit=limit)
+    entries = list(entries_crossref) + list(entries_arxiv)
+    ranked_entries = search.rank_results(entries, query)
+    return ranked_entries
 
 
 def _get_default_config_path() -> Optional[pathlib.Path]:

@@ -1,7 +1,8 @@
 """PDF parsing and lookup."""
 
+import abc
 import logging
-from typing import List, Optional
+from typing import Optional, Sequence
 
 import arxiv
 import bibtexparser
@@ -13,11 +14,43 @@ log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
 
-class CrossrefResult():
+class SearchResult(object, metaclass=abc.ABCMeta):
+    """Search result."""
+
+    def __init__(self):
+        """Instantiate ``SearchResult``."""
+        super().__init__()
+
+    @property
+    @abc.abstractmethod
+    def title(self) -> str:
+        """Get title."""
+        raise NotImplementedError()
+
+    @property
+    @abc.abstractmethod
+    def author(self) -> str:
+        """Get author."""
+        raise NotImplementedError()
+
+    @property
+    @abc.abstractmethod
+    def doi(self) -> str:
+        """Get DOI."""
+        raise NotImplementedError()
+
+    @abc.abstractmethod
+    def get_entry(self, force_update=False) -> bibtexparser.model.Entry:
+        """Get BibTeX information from Crossref."""
+        raise NotImplementedError()
+
+
+class CrossrefResult(SearchResult):
     """Crossref result."""
 
     def __init__(self, raw):
         """Instantiate ``CrossrefResult``."""
+        super().__init__()
         self.raw = raw
         self._bibtex = None
 
@@ -77,11 +110,12 @@ class CrossrefResult():
         return self._bibtex
 
 
-class ArxivResult():
+class ArxivResult(SearchResult):
     """arXiv result."""
 
     def __init__(self, raw):
         """Instantiate ``ArxivResult``."""
+        super().__init__()
         self.raw = raw
         self._bibtex = None
 
@@ -153,7 +187,7 @@ def query_crossref(
     query: str,
     limit: int,
     mailto: Optional[str] = None,
-) -> List[CrossrefResult]:
+) -> Sequence[CrossrefResult]:
     """Query Crossref."""
     crossref = habanero.Crossref(mailto=mailto)
     results = crossref.works(
@@ -167,7 +201,7 @@ def query_crossref(
 def query_crossref_doi(
     doi: str,
     mailto: Optional[str] = None,
-) -> List[CrossrefResult]:
+) -> Sequence[CrossrefResult]:
     """Query Crossref by DOI."""
     crossref = habanero.Crossref(mailto=mailto)
     results = crossref.works(ids=doi, warn=True)
@@ -178,7 +212,7 @@ def query_crossref_doi(
         return crossref_results
 
 
-def query_arxiv(query: str, limit: int) -> List[ArxivResult]:
+def query_arxiv(query: str, limit: int) -> Sequence[ArxivResult]:
     """Query arXiv."""
     client = arxiv.Client()
     search = arxiv.Search(
@@ -194,7 +228,7 @@ def query_arxiv(query: str, limit: int) -> List[ArxivResult]:
     return arxiv_results
 
 
-def query_arxiv_id(id: str) -> List[ArxivResult]:
+def query_arxiv_id(id: str) -> Sequence[ArxivResult]:
     """Query arXiv by ID."""
     client = arxiv.Client()
     search = arxiv.Search(id_list=[id])
@@ -205,3 +239,28 @@ def query_arxiv_id(id: str) -> List[ArxivResult]:
         log.warn('Error searching arXiv.')
         arxiv_results = []
     return arxiv_results
+
+
+def rank_results(
+    results: Sequence[SearchResult],
+    query: str,
+) -> Sequence[SearchResult]:
+    """Rank search results."""
+    # Find number of words from query in title
+    common_words = []
+    query_words = utilities.clean_string_for_query(query).split(' ')
+    for res in results:
+        count = 0
+        title_words = utilities.clean_string_for_query(res.title).split(' ')
+        author_words = utilities.clean_string_for_query(
+            res.author).split(' and ')
+        for word in query_words:
+            if (word in title_words) or (word in author_words):
+                count += 1
+        common_words.append(count)
+    # Sort by number of words from query in title
+    results_sorted = [
+        res for _, res in sorted(
+            zip(common_words, results), key=lambda pair: pair[0], reverse=True)
+    ]
+    return results_sorted

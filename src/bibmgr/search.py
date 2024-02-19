@@ -47,7 +47,7 @@ class CrossrefResult():
         """Get DOI."""
         return self.raw.get('DOI', '')
 
-    def get_bibtex(self, force_update=False) -> bibtexparser.model.Entry:
+    def get_entry(self, force_update=False) -> bibtexparser.model.Entry:
         """Get BibTeX information from Crossref."""
         if (self._bibtex is None) or force_update:
             if (self.doi is None) or (self.doi == ''):
@@ -105,7 +105,7 @@ class ArxivResult():
         """Get DOI."""
         return '' if self.raw.doi is None else self.raw.doi
 
-    def get_bibtex(self, force_update=False) -> bibtexparser.model.Entry:
+    def get_entry(self, force_update=False) -> bibtexparser.model.Entry:
         """Get BibTeX information from Crossref."""
         if (self._bibtex is None) or force_update:
             if (self.doi is None) or (self.doi == ''):
@@ -185,9 +185,12 @@ def query_arxiv(query: str, limit: int) -> List[ArxivResult]:
         query=query,
         max_results=limit,
     )
-    # search = arxiv.Search(id_list=['2303.15318'])
-    results = client.results(search)
-    arxiv_results = [ArxivResult(r) for r in results]
+    try:
+        results = client.results(search)
+        arxiv_results = [ArxivResult(r) for r in results]
+    except arxiv.ArxivError:
+        log.warn('Error searching arXiv.')
+        arxiv_results = []
     return arxiv_results
 
 
@@ -195,6 +198,10 @@ def query_arxiv_id(id: str) -> List[ArxivResult]:
     """Query arXiv by ID."""
     client = arxiv.Client()
     search = arxiv.Search(id_list=[id])
-    results = client.results(search)
-    arxiv_results = [ArxivResult(r) for r in results]
+    try:
+        results = client.results(search)
+        arxiv_results = [ArxivResult(r) for r in results]
+    except arxiv.ArxivError:
+        log.warn('Error searching arXiv.')
+        arxiv_results = []
     return arxiv_results

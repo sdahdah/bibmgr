@@ -1,9 +1,10 @@
 """BibTeX library manipulation."""
 
+import copy
 import logging
 import pathlib
 import shutil
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import bibtexparser
 
@@ -224,8 +225,8 @@ class Library:
                 log.warn('Cannot generate new key for entry with key '
                          f'`{entry.key}`. Skipping.')
                 new_key = entry.key
-            # If there's a duplicate, change the name
-            if new_key != entry.key:
+            elif new_key != entry.key:
+                # If there's a duplicate, change the name
                 while new_key in db.entries_dict.keys():
                     log.warn(f'Two entires share the key `{entry.key}`. '
                              'Appending `_dup` to second entry.')
@@ -236,7 +237,15 @@ class Library:
             new_db.add(entry)
         self._db = new_db
 
-    def add_file(self, file: str, key: Optional[str] = None) -> None:
+    def organize(self) -> None:
+        """Organize BibTeX library."""
+        self.create_missing_groups()
+        self.create_missing_fields()
+        self.rename_according_to_bib()
+        self.move_according_to_bib()
+        self.rekey_according_to_bib()
+
+    def add_file(self, file: str, key: Optional[str] = None) -> str:
         """Update the `file` field in a BibTeX entry.
 
         Creates a new entry if no key is specified.
@@ -246,7 +255,8 @@ class Library:
         file_path = pathlib.Path(file)
         if key is None:
             key = utilities.clean_string_for_key(file_path.stem)
-        key = key.lower()
+        else:
+            key = key.lower()
         # Check validity of PDF path, then link if valid.
         if not file_path.exists():
             log.warning(f'{file_path} does not exist. Not adding.')
@@ -267,6 +277,32 @@ class Library:
                     ],
                 )
                 db.add(entry)
+        return key
+
+    def update_entry(
+        self,
+        entry_key: str,
+        new_entry: bibtexparser.model.Entry,
+        overwrite: bool = False,
+    ) -> Dict[str, bibtexparser.model.Entry]:
+        """Update entry in library."""
+        db = self._get_db()
+        entry_log = {'new': new_entry}
+        if entry_key in db.entries_dict.keys():
+            old_entry = db.entries_dict[entry_key]
+            entry_log['old'] = copy.deepcopy(old_entry)
+            old_entry.entry_type = new_entry.entry_type
+            for field_key in new_entry.fields_dict.keys():
+                if overwrite:
+                    old_entry.set_field(new_entry.fields_dict[field_key])
+                elif field_key not in old_entry:
+                    old_entry.set_field(new_entry.fields_dict[field_key])
+                elif not old_entry.fields_dict[field_key].value:
+                    old_entry.set_field(new_entry.fields_dict[field_key])
+            entry_log['merged'] = old_entry
+        else:
+            log.debug(f'Key {entry_key} not in library.')
+        return entry_log
 
     def write_bib_file(self) -> None:
         """Write BibTeX dictionary to file.

@@ -14,9 +14,8 @@ import pdfminer.pdfparser
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
-old_arxiv_name_re = r'.*(\d\d\d\d\d\d\d).*'
 new_arxiv_name_re = r'.*(\d\d\d\d\.\d\d\d\d\d?).*'
-old_arxiv_text_re = r'.*\/(\d\d\d\d\d\d\d).*'
+old_arxiv_text_re = r'.*arXiv\:(.*\/\d\d\d\d\d\d\d).*'
 new_arxiv_text_re = r'.*arXiv\:(\d\d\d\d\.\d\d\d\d\d?).*'
 
 # https://www.crossref.org/blog/dois-and-matching-regular-expressions/
@@ -110,11 +109,8 @@ def _parse_filename(path: pathlib.Path) -> Metadata:
         PDF metadata.
     """
     match_new = re.match(new_arxiv_name_re, path.stem)
-    match_old = re.match(old_arxiv_name_re, path.stem)
     if match_new is not None:
         id = match_new.group(1)
-    elif match_old is not None:
-        id = match_old.group(1)
     else:
         id = None
     metadata = Metadata(arxiv_id=id)
@@ -146,11 +142,8 @@ def _parse_pdf_metadata(path: pathlib.Path) -> Metadata:
                 if url_b is not None:
                     url = url_b.decode('utf-8', errors='ignore')
                     match_new = re.match(new_arxiv_name_re, url)
-                    match_old = re.match(old_arxiv_name_re, url)
                     if match_new is not None:
                         id = match_new.group(1)
-                    elif match_old is not None:
-                        id = match_old.group(1)
                     else:
                         id = None
                     if (id is not None) and (metadata.arxiv_id is None):

@@ -19,9 +19,11 @@ log.addHandler(logging.NullHandler())
 @click.group()
 @click.option('--verbose', is_flag=True, help='Print detailed output.')
 @click.option('--debug', is_flag=True, help='Print debug information.')
-@click.option('--dry-run',
-              is_flag=True,
-              help='Run command without moving or writing to any files.')
+@click.option(
+    '--dry-run',
+    is_flag=True,
+    help='Run command without moving or writing to any files.',
+)
 @click.option(
     '-c',
     '--config',
@@ -89,11 +91,7 @@ def org(obj):
     """Organize BibTeX library and linked files."""
     library = obj['library']
     library.open()
-    library.create_missing_groups()
-    library.create_missing_fields()
-    library.rename_according_to_bib()
-    library.move_according_to_bib()
-    library.rekey_according_to_bib()
+    library.organize()
     library.write_bib_file()
 
 
@@ -114,13 +112,39 @@ def edit(obj):
     type=click.Path(exists=True, dir_okay=False, path_type=pathlib.Path),
     nargs=-1,
 )
+@click.option(
+    '-k',
+    '--key',
+    type=str,
+    default=None,
+    help='',
+)
 @click.pass_obj
-def add(obj, files):
+def add(obj, files, key):
     """Add linked files to BibTeX library."""
     library = obj['library']
     library.open()
     for file in files:
-        library.add_file(file, None)
+        new_key = library.add_file(file, key)
+
+        metadata = parse.parse_pdf(file)
+        if metadata.doi:
+            entries = search.query_crossref_doi(metadata.doi)
+        elif metadata.arxiv_id:
+            entries = search.query_arxiv_id(metadata.arxiv_id)
+        else:
+            query = metadata.title + ' ' + metadata.author
+            entries_crossref = search.query_crossref(query, limit=2)
+            entries_arxiv = search.query_arxiv(query, limit=2)
+            entries = entries_crossref + entries_arxiv
+
+        x = library.update_entry(new_key, entries[0].get_entry())
+        print(x['old'])
+        print('---')
+        print(x['new'])
+        print('---')
+        print(x['merged'])
+        print('---')
     library.write_bib_file()
 
 
@@ -144,7 +168,7 @@ def lookup(obj, file):
         entries = entries_crossref + entries_arxiv
     new_db = bibtexparser.Library()
     for entry in entries:
-        new_db.add(entry.get_bibtex())
+        new_db.add(entry.get_entry())
     a = bibtexparser.write_string(new_db)
     print(a)
 

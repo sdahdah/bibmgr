@@ -87,20 +87,18 @@ class CrossrefResult(SearchResult):
                 given = self.author.split(' ')[0]
                 title = self.title.split(' ')[0]
                 key = utilities.clean_string_for_key(given + '_' + title)
-                self._bibtex = bibtexparser.model.Entry(
-                    entry_type='misc',
-                    key=key,
-                    fields=[
-                        bibtexparser.model.Field(
-                            key='title',
-                            value=self.title,
-                        ),
-                        bibtexparser.model.Field(
-                            key='author',
-                            value=self.author,  # TODO WRONG -> MAKE STR THEN PARSE
-                        ),
+                entry_str = f'''@misc{{{key},
+                title={{{self.title}}},
+                author={{{self.author}}},
+                }}
+                '''
+                self._bibtex = bibtexparser.parse_string(
+                    entry_str,
+                    append_middleware=[
+                        bibtexparser.middlewares.SeparateCoAuthors(),
+                        bibtexparser.middlewares.SplitNameParts(),
                     ],
-                )
+                ).entries[0]
             else:
                 result = habanero.cn.content_negotiation(
                     ids=self.doi,
@@ -158,28 +156,20 @@ class ArxivResult(SearchResult):
                     jt = f'{{\\tt arXiv:{id}}}'
                 else:
                     jt = f'{{\\tt arXiv:{id}[{cat}]}}'
-                self._bibtex = bibtexparser.model.Entry(
-                    entry_type='article',
-                    key=key,
-                    fields=[
-                        bibtexparser.model.Field(
-                            key='title',
-                            value=self.title,
-                        ),
-                        bibtexparser.model.Field(
-                            key='author',
-                            value=self.author,  # TODO WRONG -> MAKE STR THEN PARSE
-                        ),
-                        bibtexparser.model.Field(
-                            key='year',
-                            value=self.raw.published.year,
-                        ),
-                        bibtexparser.model.Field(
-                            key='journaltitle',
-                            value=jt,
-                        ),
+                entry_str = f'''@misc{{{key},
+                title={{{self.title}}},
+                author={{{self.author}}},
+                year={{{self.raw.published.year}}},
+                journaltitle={{{jt}}},
+                }}
+                '''
+                self._bibtex = bibtexparser.parse_string(
+                    entry_str,
+                    append_middleware=[
+                        bibtexparser.middlewares.SeparateCoAuthors(),
+                        bibtexparser.middlewares.SplitNameParts(),
                     ],
-                )
+                ).entries[0]
             else:
                 result = habanero.cn.content_negotiation(
                     ids=self.doi,

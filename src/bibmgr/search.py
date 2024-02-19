@@ -97,7 +97,7 @@ class CrossrefResult(SearchResult):
                         ),
                         bibtexparser.model.Field(
                             key='author',
-                            value=self.author,
+                            value=self.author,  # TODO WRONG -> MAKE STR THEN PARSE
                         ),
                     ],
                 )
@@ -106,7 +106,13 @@ class CrossrefResult(SearchResult):
                     ids=self.doi,
                     format='bibentry',
                 )
-                self._bibtex = bibtexparser.parse_string(result).entries[0]
+                self._bibtex = bibtexparser.parse_string(
+                    result,
+                    append_middleware=[
+                        bibtexparser.middlewares.SeparateCoAuthors(),
+                        bibtexparser.middlewares.SplitNameParts(),
+                    ],
+                ).entries[0]
         return self._bibtex
 
 
@@ -162,7 +168,7 @@ class ArxivResult(SearchResult):
                         ),
                         bibtexparser.model.Field(
                             key='author',
-                            value=self.author,
+                            value=self.author,  # TODO WRONG -> MAKE STR THEN PARSE
                         ),
                         bibtexparser.model.Field(
                             key='year',
@@ -179,7 +185,13 @@ class ArxivResult(SearchResult):
                     ids=self.doi,
                     format='bibentry',
                 )
-                self._bibtex = bibtexparser.parse_string(result).entries[0]
+                self._bibtex = bibtexparser.parse_string(
+                    result,
+                    append_middleware=[
+                        bibtexparser.middlewares.SeparateCoAuthors(),
+                        bibtexparser.middlewares.SplitNameParts(),
+                    ],
+                ).entries[0]
         return self._bibtex
 
 

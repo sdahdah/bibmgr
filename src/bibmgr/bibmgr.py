@@ -122,51 +122,46 @@ def edit(obj):
 @click.pass_obj
 def add(obj, files, key):
     """Add linked files to BibTeX library."""
-    # TODO Configuration settings
     # TODO Option to skip
     library = obj['library']
+    config = obj['config']
     library.open()
     for file in files:
         new_key = library.add_file(file, key)
-        entries = _query_file(file)
+        entries = _query_file(
+            file,
+            max_pages=config['parsing'].getint('max_pages'),
+            max_lines=config['parsing'].getint('max_lines'),
+            min_words=config['parsing'].getint('min_words'),
+            max_words=config['parsing'].getint('max_words'),
+            max_chars=config['parsing'].getint('max_chars'),
+        )
         if entries:
             library.update_entry(new_key, entries[0].get_entry())
+    library.organize()
     library.write_bib_file()
-
-
-@cli.command()
-@click.argument(
-    'file',
-    type=click.Path(exists=True, dir_okay=False, path_type=pathlib.Path),
-)
-@click.pass_obj
-def lookup(obj, file):
-    """TODO."""
-    metadata = parse.parse_pdf(file)
-    if metadata.doi:
-        entries = search.query_crossref_doi(metadata.doi)
-    elif metadata.arxiv_id:
-        entries = search.query_arxiv_id(metadata.arxiv_id)
-    else:
-        query = metadata.title + ' ' + metadata.author
-        entries_crossref = search.query_crossref(query, limit=2)
-        entries_arxiv = search.query_arxiv(query, limit=2)
-        entries = entries_crossref + entries_arxiv
-    new_db = bibtexparser.Library()
-    for entry in entries:
-        new_db.add(entry.get_entry())
-    a = bibtexparser.write_string(new_db)
-    print(a)
 
 
 def _query_file(
     path: pathlib.Path,
     limit: int = 10,
     mailto: Optional[str] = None,
+    max_pages: int = 2,
+    max_lines: int = 4,
+    min_words: int = 2,
+    max_words: int = 30,
+    max_chars: int = 200,
 ) -> Sequence[search.SearchResult]:
     """Query by file."""
     # Get metadata
-    metadata = parse.parse_pdf(path)
+    metadata = parse.parse_pdf(
+        path,
+        max_pages=max_pages,
+        max_lines=max_lines,
+        min_words=min_words,
+        max_words=max_words,
+        max_chars=max_chars,
+    )
     # Search by DOI first
     entries: Sequence[search.SearchResult]
     if metadata.doi:
@@ -182,6 +177,16 @@ def _query_file(
     query_title = utilities.clean_string_for_query(metadata.title)
     query_author = utilities.clean_string_for_query(metadata.author)
     query = query_title + query_author
+    ranked_entries = _query_string(query, limit=limit, mailto=mailto)
+    return ranked_entries
+
+
+def _query_string(
+    query: str,
+    limit: int = 10,
+    mailto: Optional[str] = None,
+) -> Sequence[search.SearchResult]:
+    """Query by file."""
     entries_crossref = search.query_crossref(query, limit=limit, mailto=mailto)
     entries_arxiv = search.query_arxiv(query, limit=limit)
     entries = list(entries_crossref) + list(entries_arxiv)

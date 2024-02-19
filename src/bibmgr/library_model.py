@@ -287,7 +287,7 @@ class Library:
     ) -> Dict[str, bibtexparser.model.Entry]:
         """Update entry in library."""
         db = self._get_db()
-        entry_log = {'new': new_entry}
+        entry_log = {'new': copy.deepcopy(new_entry)}
         if entry_key in db.entries_dict.keys():
             old_entry = db.entries_dict[entry_key]
             entry_log['old'] = copy.deepcopy(old_entry)
@@ -299,7 +299,7 @@ class Library:
                     old_entry.set_field(new_entry.fields_dict[field_key])
                 elif not old_entry.fields_dict[field_key].value:
                     old_entry.set_field(new_entry.fields_dict[field_key])
-            entry_log['merged'] = old_entry
+            entry_log['merged'] = copy.deepcopy(old_entry)
         else:
             log.debug(f'Key {entry_key} not in library.')
         return entry_log
@@ -410,14 +410,14 @@ class Library:
         `title` fields are empty or not present, they are skipped.
         """
         string_components = []
-        if ('author' in entry) and (len(entry['author']) > 0):
+        if ('author' in entry) and entry['author']:
             # Last name of first author
             last_name = entry['author'][0].last[0]
             string_components.append(utilities.clean_string_for_key(last_name))
-        if ('year' in entry) and (entry['year'] != ''):
+        if ('year' in entry) and entry['year']:
             string_components.append(
                 utilities.clean_string_for_key(entry['year']))
-        if ('title' in entry) and (entry['title'] != ''):
+        if ('title' in entry) and entry['title']:
             if words_from_title is None:
                 # Take all of title
                 string_components.append(

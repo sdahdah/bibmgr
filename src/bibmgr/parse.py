@@ -39,6 +39,7 @@ class Metadata:
         self.doi = doi
 
     def __repr__(self):
+        """Represent ``Metadata`` as a string."""
         return str({
             'title': self.title,
             'author': self.author,
@@ -47,7 +48,14 @@ class Metadata:
         })
 
 
-def parse_pdf(path: pathlib.Path) -> Metadata:
+def parse_pdf(
+    path: pathlib.Path,
+    max_pages: int,
+    max_lines: int,
+    min_words: int,
+    max_words: int,
+    max_chars: int,
+) -> Metadata:
     """Parse PDF.
 
     Parameters
@@ -62,7 +70,14 @@ def parse_pdf(path: pathlib.Path) -> Metadata:
     """
     filename = _parse_filename(path)
     pdf_metadata = _parse_pdf_metadata(path)
-    pdf_text = _parse_pdf_text(path)
+    pdf_text = _parse_pdf_text(
+        path,
+        max_pages=max_pages,
+        max_lines=max_lines,
+        min_words=min_words,
+        max_words=max_words,
+        max_chars=max_chars,
+    )
     metadata = Metadata()
     # Set title
     if pdf_metadata.title:
@@ -178,11 +193,11 @@ def _parse_pdf_metadata(path: pathlib.Path) -> Metadata:
 
 def _parse_pdf_text(
     path: pathlib.Path,
-    max_pages: int = 2,
-    max_lines: int = 4,
-    min_words: int = 2,
-    max_words: int = 30,
-    max_chars: int = 200,
+    max_pages: int,
+    max_lines: int,
+    min_words: int,
+    max_words: int,
+    max_chars: int,
 ) -> Metadata:
     """Get metadata from PDF text.
 

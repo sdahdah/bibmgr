@@ -9,9 +9,10 @@ import pathlib
 import subprocess
 from typing import Optional
 
+import bibtexparser
 import click
 
-from . import library_model, search, parse
+from . import library_model, parse, search
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -131,7 +132,22 @@ def add(obj, file):
 @click.pass_obj
 def lookup(obj, file):
     """TODO."""
-    print(parse.parse_pdf(file))
+    metadata = parse.parse_pdf(file)
+    if metadata.doi:
+        entries = search.query_crossref_doi(metadata.doi)
+    elif metadata.arxiv_id:
+        entries = search.query_arxiv_id(metadata.arxiv_id)
+    else:
+        query = metadata.title + ' ' + metadata.author
+        entries_crossref = search.query_crossref(query, limit=2)
+        entries_arxiv = search.query_arxiv(query, limit=2)
+        entries = entries_crossref + entries_arxiv
+    new_db = bibtexparser.Library()
+    for entry in entries:
+        new_db.add(entry.get_bibtex())
+    a = bibtexparser.write_string(new_db)
+    print(a)
+    # TODO
 
 
 def _get_default_config_path() -> Optional[pathlib.Path]:

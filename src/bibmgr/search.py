@@ -178,10 +178,7 @@ def query_crossref_doi(
         return crossref_results
 
 
-def query_arxiv(
-    query: str,
-    limit: int,
-) -> List[ArxivResult]:
+def query_arxiv(query: str, limit: int) -> List[ArxivResult]:
     """Query arXiv."""
     client = arxiv.Client()
     search = arxiv.Search(
@@ -194,10 +191,7 @@ def query_arxiv(
     return arxiv_results
 
 
-def query_arxiv_id(
-    id: str,
-    limit: int,
-) -> List[ArxivResult]:
+def query_arxiv_id(id: str) -> List[ArxivResult]:
     """Query arXiv by ID."""
     client = arxiv.Client()
     search = arxiv.Search(id_list=[id])

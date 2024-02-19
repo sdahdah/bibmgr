@@ -11,8 +11,6 @@ import pdfminer.layout
 import pdfminer.pdfdocument
 import pdfminer.pdfparser
 
-# TODO check metadata and name
-
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
@@ -50,10 +48,52 @@ class Metadata:
         })
 
 
-# TODO
-def parse_pdf(path: pathlib.Path) -> Dict[str, Optional[str]]:
-    """Parse PDF."""
-    pass
+def parse_pdf(path: pathlib.Path) -> Metadata:
+    """Parse PDF.
+
+    Parameters
+    ----------
+    file : pathlib.Path
+        File name.
+
+    Returns
+    -------
+    Metadata :
+        PDF metadata.
+    """
+    filename = _parse_filename(path)
+    pdf_metadata = _parse_pdf_metadata(path)
+    pdf_text = _parse_pdf_text(path)
+    metadata = Metadata()
+    # Set title
+    if pdf_metadata.title:
+        metadata.title = pdf_metadata.title
+    elif pdf_text.title:
+        metadata.title = pdf_text.title
+    elif filename.title:
+        metadata.title = filename.title
+    # Set author
+    if pdf_metadata.author:
+        metadata.author = pdf_metadata.author
+    elif pdf_text.author:
+        metadata.author = pdf_text.author
+    elif filename.author:
+        metadata.author = filename.author
+    # Set arXiv ID
+    if pdf_text.arxiv_id:
+        metadata.arxiv_id = pdf_text.arxiv_id
+    elif filename.arxiv_id:
+        metadata.arxiv_id = filename.arxiv_id
+    elif pdf_metadata.arxiv_id:
+        metadata.arxiv_id = pdf_metadata.arxiv_id
+    # Set DOI
+    if pdf_metadata.doi:
+        metadata.doi = pdf_metadata.doi
+    elif pdf_text.doi:
+        metadata.doi = pdf_text.doi
+    elif filename.doi:
+        metadata.doi = filename.doi
+    return metadata
 
 
 def _parse_filename(path: pathlib.Path) -> Metadata:

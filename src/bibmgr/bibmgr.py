@@ -131,9 +131,7 @@ def add(obj, file):
 @click.pass_obj
 def lookup(obj, file):
     """TODO."""
-    print(parse._parse_filename(file))
-    print(parse._parse_pdf_metadata(file))
-    print(parse._parse_pdf_text(file))
+    print(parse.parse_pdf(file))
 
 
 def _get_default_config_path() -> Optional[pathlib.Path]:

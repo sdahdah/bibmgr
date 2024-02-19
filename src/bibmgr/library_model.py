@@ -117,12 +117,18 @@ class Library:
         for entry in db.entries:
             for field in self.mandatory_fields:
                 if field not in entry:
-                    if field == 'author':
-                        entry[field] = []
+                    if field in ['author', 'editor', 'translator']:
+                        entry.set_field(
+                            bibtexparser.model.Field(key=field, value=[]))
                     elif field == 'groups':
-                        entry[field] = self.default_group
+                        entry.set_field(
+                            bibtexparser.model.Field(
+                                key=field,
+                                value=self.default_group,
+                            ))
                     else:
-                        entry[field] = ''
+                        entry.set_field(
+                            bibtexparser.model.Field(key=field, value=''))
 
     def rename_according_to_bib(self) -> None:
         """Generate a new file name for each entry.
@@ -284,17 +290,22 @@ class Library:
                 self.bibtex_file.rename(self.bibtex_bak_file)
             # Write new .bib file
             log.info(f'Writing `{self.bibtex_file}`.')
-            bibtexparser.write_file(
-                str(self.bibtex_file.resolve()),
-                db,
-                append_middleware=[
-                    bibtexparser.middlewares.MergeNameParts(),
-                    bibtexparser.middlewares.MergeCoAuthors(),
-                    bibtexparser.middlewares.SortFieldsCustomMiddleware(
-                        order=tuple(self.field_order)),
-                ],
-                bibtex_format=self._bibtex_format,
-            )
+            try:
+                bibtexparser.write_file(
+                    str(self.bibtex_file.resolve()),
+                    db,
+                    append_middleware=[
+                        bibtexparser.middlewares.MergeNameParts(),
+                        bibtexparser.middlewares.MergeCoAuthors(),
+                        bibtexparser.middlewares.SortFieldsCustomMiddleware(
+                            order=tuple(self.field_order)),
+                    ],
+                    bibtex_format=self._bibtex_format,
+                )
+            except ValueError:
+                log.warning(
+                    f'Failed to write `{self.bibtex_file}`, restoring backup.')
+                shutil.copy(self.bibtex_bak_file, self.bibtex_file)
 
     def _get_db(self) -> bibtexparser.Library:
         """Raise error if BibTeX file is not open."""

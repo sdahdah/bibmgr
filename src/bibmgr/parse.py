@@ -80,7 +80,6 @@ def _parse_pdf_metadata(path: pathlib.Path) -> Dict[str, Optional[str]]:
         'arxiv_id': None,
         'doi': None,
     }
-
     with open(path, 'rb') as f:
         parser = pdfminer.pdfparser.PDFParser(f)
         doc = pdfminer.pdfdocument.PDFDocument(parser)
@@ -108,7 +107,7 @@ def _parse_pdf_metadata(path: pathlib.Path) -> Dict[str, Optional[str]]:
         metadata['title'] = title
     author = doc.info[0]['Author'].decode('utf-8', errors='ignore')
     if author != '':
-        metadta['author'] = author
+        metadata['author'] = author
     for key, value_b in doc.info[0].items():
         # Match arXiv ID
         value = value_b.decode('utf-8', errors='ignore')

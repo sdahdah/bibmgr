@@ -123,17 +123,17 @@ def add(obj, file):
     library.write_bib_file()
 
 
-# TODO
-# @cli.command()
-# @click.argument(
-#     'file',
-#     type=click.Path(exists=True, dir_okay=False, path_type=pathlib.Path),
-# )
-# @click.pass_obj
-# def lookup(obj, file):
-#     """TODO."""
-#     print(parse._parse_filename(file))
-#     print(parse._parse_pdf_metadata(file))
+@cli.command()
+@click.argument(
+    'file',
+    type=click.Path(exists=True, dir_okay=False, path_type=pathlib.Path),
+)
+@click.pass_obj
+def lookup(obj, file):
+    """TODO."""
+    print(parse._parse_filename(file))
+    print(parse._parse_pdf_metadata(file))
+    print(parse._parse_pdf_text(file))
 
 
 def _get_default_config_path() -> Optional[pathlib.Path]:

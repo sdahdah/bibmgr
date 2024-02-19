@@ -16,8 +16,8 @@ import pdfminer.pdfparser
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
-old_arxiv_name_re = r'\d\d\d\d\d\d\d'
-new_arxiv_name_re = r'\d\d\d\d\.\d\d\d\d\d?'
+old_arxiv_name_re = r'.*(\d\d\d\d\d\d\d).*'
+new_arxiv_name_re = r'.*(\d\d\d\d\.\d\d\d\d\d?).*'
 old_arxiv_text_re = r'.*\/(\d\d\d\d\d\d\d).*'
 new_arxiv_text_re = r'.*arXiv\:(\d\d\d\d\.\d\d\d\d\d?).*'
 
@@ -31,7 +31,7 @@ def parse_pdf(path: pathlib.Path) -> Dict[str, Optional[str]]:
     pass
 
 
-def _parse_filename(file: pathlib.Path) -> Dict[str, Optional[str]]:
+def _parse_filename(path: pathlib.Path) -> Dict[str, Optional[str]]:
     """Construct a search query from a PDF file.
 
     Parameters
@@ -44,12 +44,12 @@ def _parse_filename(file: pathlib.Path) -> Dict[str, Optional[str]]:
     str :
         Search query.
     """
-    match_new = re.match(new_arxiv_name_re, file.stem)
-    match_old = re.match(old_arxiv_name_re, file.stem)
+    match_new = re.match(new_arxiv_name_re, path.stem)
+    match_old = re.match(old_arxiv_name_re, path.stem)
     if match_new is not None:
-        id = match_new.group(0)
+        id = match_new.group(1)
     elif match_old is not None:
-        id = match_old.group(0)
+        id = match_old.group(1)
     else:
         id = None
     metadata = {
@@ -61,7 +61,7 @@ def _parse_filename(file: pathlib.Path) -> Dict[str, Optional[str]]:
     return metadata
 
 
-def _parse_pdf_metadata(file: pathlib.Path) -> Dict[str, Optional[str]]:
+def _parse_pdf_metadata(path: pathlib.Path) -> Dict[str, Optional[str]]:
     """Construct a search query from a PDF file.
 
     Parameters
@@ -74,17 +74,41 @@ def _parse_pdf_metadata(file: pathlib.Path) -> Dict[str, Optional[str]]:
     str :
         Search query.
     """
-    with open(file, 'rb') as f:
-        parser = pdfminer.pdfparser.PDFParser(f)
-        doc = pdfminer.pdfdocument.PDFDocument(parser)
-    title = doc.info[0]['Title'].decode('utf-8', errors='ignore')
-    author = doc.info[0]['Author'].decode('utf-8', errors='ignore')
     metadata: Dict[str, Optional[str]] = {
-        'title': None if title == '' else title,
-        'author': None if author == '' else author,
+        'title': None,
+        'author': None,
         'arxiv_id': None,
         'doi': None,
     }
+
+    with open(path, 'rb') as f:
+        parser = pdfminer.pdfparser.PDFParser(f)
+        doc = pdfminer.pdfdocument.PDFDocument(parser)
+        # Look for arXiv link in annotations of first page
+        first_page = next(pdfminer.pdfpage.PDFPage.create_pages(doc))
+        if first_page.annots:
+            for annotation in first_page.annots:
+                url_b = annotation.resolve().get('A', {}).get('URI', None)
+                if url_b is not None:
+                    url = url_b.decode('utf-8', errors='ignore')
+                    match_new = re.match(new_arxiv_name_re, url)
+                    match_old = re.match(old_arxiv_name_re, url)
+                    if match_new is not None:
+                        id = match_new.group(1)
+                    elif match_old is not None:
+                        id = match_old.group(1)
+                    else:
+                        id = None
+                    if (id is not None) and (metadata['arxiv_id'] is None):
+                        metadata['arxiv_id'] = id
+        parser.close()
+    # Look for DOI or arXiv ID in metadata
+    title = doc.info[0]['Title'].decode('utf-8', errors='ignore')
+    if title != '':
+        metadata['title'] = title
+    author = doc.info[0]['Author'].decode('utf-8', errors='ignore')
+    if author != '':
+        metadta['author'] = author
     for key, value_b in doc.info[0].items():
         # Match arXiv ID
         value = value_b.decode('utf-8', errors='ignore')
@@ -106,7 +130,50 @@ def _parse_pdf_metadata(file: pathlib.Path) -> Dict[str, Optional[str]]:
 
 
 # TODO
-def _parse_pdf_text(file: pathlib.Path) -> str:
+def _parse_pdf_text(path: pathlib.Path) -> str:
+    """Construct a search query from a PDF file.
+
+    Parameters
+    ----------
+    file : pathlib.Path
+        File name.
+
+    Returns
+    -------
+    str :
+        Search query.
+    """
+    max_pages = 2
+    metadata: Dict[str, Optional[str]] = {
+        'title': None,
+        'author': None,
+        'arxiv_id': None,
+        'doi': None,
+    }
+    for page in pdfminer.high_level.extract_pages(path, maxpages=max_pages):
+        for element in page:
+            if isinstance(element, pdfminer.layout.LTTextContainer):
+                text = element.get_text()
+                # Match arXiv ID
+                match_new_arxiv_text = re.match(new_arxiv_text_re, text)
+                match_old_arxiv_text = re.match(old_arxiv_text_re, text)
+                if match_new_arxiv_text is not None:
+                    id = match_new_arxiv_text.group(1)
+                elif match_old_arxiv_text is not None:
+                    id = match_old_arxiv_text.group(1)
+                else:
+                    id = None
+                if (id is not None) and (metadata['arxiv_id'] is None):
+                    metadata['arxiv_id'] = id
+                # Match DOI
+                match_doi = re.match(doi_re, text, flags=re.IGNORECASE)
+                if (match_doi is not None) and (metadata['doi'] is None):
+                    metadata['doi'] = match_doi.group(1)
+    return metadata
+
+
+# TODO
+def _parse_pdf_text_old(file: pathlib.Path) -> str:
     """Construct a search query from a PDF file.
 
     Parameters

@@ -57,7 +57,7 @@ def parse_pdf(path: pathlib.Path) -> Dict[str, Optional[str]]:
 
 
 def _parse_filename(path: pathlib.Path) -> Metadata:
-    """Construct a search query from a PDF file.
+    """Get metadata from PDF file name.
 
     Parameters
     ----------
@@ -82,7 +82,7 @@ def _parse_filename(path: pathlib.Path) -> Metadata:
 
 
 def _parse_pdf_metadata(path: pathlib.Path) -> Metadata:
-    """Construct a search query from a PDF file.
+    """Get metadata from PDF metadata.
 
     Parameters
     ----------
@@ -143,21 +143,38 @@ def _parse_pdf_metadata(path: pathlib.Path) -> Metadata:
     return metadata
 
 
-# TODO
-def _parse_pdf_text(path: pathlib.Path) -> Metadata:
-    """Construct a search query from a PDF file.
+def _parse_pdf_text(
+    path: pathlib.Path,
+    max_pages: int = 2,
+    max_lines: int = 4,
+    min_words: int = 2,
+    max_words: int = 30,
+    max_chars: int = 200,
+) -> Metadata:
+    """Get metadata from PDF text.
 
     Parameters
     ----------
     file : pathlib.Path
         File name.
+    max_pages : int
+        Maximum number of pages to parse.
+    max_lines : int
+        Maximum number of lines in a text box.
+    min_words : int
+        Minimum number of words in a text box.
+    max_words : int
+        Maximum number of words in a text box.
+    max_chars : int
+        Maximum number of characters in the title.
 
     Returns
     -------
     Metadata :
         PDF metadata.
     """
-    max_pages = 2
+    text_chunks = []
+    text_sizes = []
     metadata = Metadata()
     for page in pdfminer.high_level.extract_pages(path, maxpages=max_pages):
         for element in page:
@@ -178,37 +195,9 @@ def _parse_pdf_text(path: pathlib.Path) -> Metadata:
                 match_doi = re.match(doi_re, text, flags=re.IGNORECASE)
                 if (match_doi is not None) and (metadata.doi is None):
                     metadata.doi = match_doi.group(1)
-    return metadata
-
-
-# TODO
-def _parse_pdf_text_old(file: pathlib.Path) -> str:
-    """Construct a search query from a PDF file.
-
-    Parameters
-    ----------
-    file : pathlib.Path
-        File name.
-
-    Returns
-    -------
-    str :
-        Search query.
-    """
-    # Extract relevant text chunks and their font sizes
-    text_chunks = []
-    text_sizes = []
-    mp = 2  # TODO
-    ml = 4  # TODO
-    minw = 2  # TODO
-    maxw = 30  # TODO
-    maxc = 200  # TODO
-    for page_layout in pdfminer.high_level.extract_pages(file, maxpages=mp):
-        for element in page_layout:
-            if isinstance(element, pdfminer.layout.LTTextContainer):
-                text = element.get_text()
+                # Look for title
                 lines = text.count('\n')
-                if lines > ml:
+                if lines > max_lines:
                     # If the element has too many lines, it's probably a
                     # paragraph from the main body. Skip it.
                     continue
@@ -224,9 +213,9 @@ def _parse_pdf_text_old(file: pathlib.Path) -> str:
                     # Count the number of words. Skip if there are too many
                     # or too few.
                     words = text_stripped.count(' ') + 1
-                    if words < minw:
+                    if words < min_words:
                         continue
-                    if words > maxw:
+                    if words > max_words:
                         continue
                     # Find size of second character in the string.
                     # Skips the first in case there's a drop cap.
@@ -249,6 +238,8 @@ def _parse_pdf_text_old(file: pathlib.Path) -> str:
     query = ''
     for chunk, size in zip(text_chunks, text_sizes):
         if size >= threshold_size:
-            if len(query + ' ' + chunk) <= maxc:
+            if len(query + ' ' + chunk) <= max_chars:
                 query += (' ' + chunk)
-    return query.strip()
+    if metadata.title is None:
+        metadata.title = query.strip()
+    return metadata

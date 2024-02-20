@@ -51,23 +51,61 @@ def cli(ctx, verbose, debug, dry_run, config, library):
     logging.basicConfig(format=formatter, level=logging_level)
     # Parse config
     conf = configparser.ConfigParser()
+    conf['DEFAULT'] = {
+        'default_library':
+        '',
+        'filename_words':
+        4,
+        'filename_length':
+        100,
+        'key_length':
+        40,
+        'editor':
+        '',
+        'field_order': ('title, author, month, year, booktitle, journaltitle, '
+                        'eventtitle, journal, publisher, location, series, '
+                        'volume, number, pages, numpages, issn, doi, url, '
+                        'groups, keywords, comment, file'),
+        'mandatory_fields': ('title, author, year, groups, keywords, comment, '
+                             'file'),
+        'max_query_results':
+        10,
+        'polite_pool_email':
+        '',
+        'max_pages':
+        2,
+        'max_lines':
+        4,
+        'min_words':
+        2,
+        'max_words':
+        30,
+        'max_chars':
+        200,
+        'bibtex_file':
+        '',
+        'storage_path':
+        '',
+        'default_group':
+        'unfiled',
+    }
     conf.read(_get_default_config_path() if config is None else config)
     if library is None:
-        selected_lib = conf['bibmgr']['default_library']
+        selected_lib = conf.get('bibmgr', 'default_library')
     else:
         selected_lib = library
     # Create library
     ctx.obj = {
         'library':
         library_model.Library(
-            conf[selected_lib]['bibtex_file'],
-            conf[selected_lib]['storage_path'],
-            conf[selected_lib]['default_group'],
+            conf.get(selected_lib, 'bibtex_file'),
+            conf.get(selected_lib, 'storage_path'),
+            conf.get(selected_lib, 'default_group'),
             conf.getint('bibmgr', 'filename_words'),
             conf.getint('bibmgr', 'filename_length'),
             conf.getint('bibmgr', 'key_length'),
-            conf['bibmgr']['field_order'].split(', '),
-            conf['bibmgr']['mandatory_fields'].split(', '),
+            conf.get('bibmgr', 'field_order').split(', '),
+            conf.get('bibmgr', 'mandatory_fields').split(', '),
             dry_run,
         ),
         'config':
@@ -99,7 +137,7 @@ def org(obj):
 def edit(obj):
     """Open BibTeX library in text editor."""
     library = obj['library']
-    conf_editor = obj['config']['bibmgr']['editor']
+    conf_editor = obj['config'].get('bibmgr', 'editor')
     env_editor = os.environ.get('EDITOR')
     editor = env_editor if conf_editor is None else conf_editor
     subprocess.call([editor, library.bibtex_file])
@@ -147,24 +185,24 @@ def add(obj, files, key, query, skip_query):
         if query:
             entries = _query_string(
                 query,
-                limit=config['bibmgr'].getint('max_query_results'),
-                mailto=config['bibmgr']['polite_pool_email'],
+                limit=config.getint('bibmgr', 'max_query_results'),
+                mailto=config.get('bibmgr', 'polite_pool_email'),
             )
         else:
             # Get metadata
             metadata = parse.parse_pdf(
                 file,
-                max_pages=config['parsing'].getint('max_pages'),
-                max_lines=config['parsing'].getint('max_lines'),
-                min_words=config['parsing'].getint('min_words'),
-                max_words=config['parsing'].getint('max_words'),
-                max_chars=config['parsing'].getint('max_chars'),
+                max_pages=config.getint('parsing', 'max_pages'),
+                max_lines=config.getint('parsing', 'max_lines'),
+                min_words=config.getint('parsing', 'min_words'),
+                max_words=config.getint('parsing', 'max_words'),
+                max_chars=config.getint('parsing', 'max_chars'),
             )
             # Query online based on metadata
             entries = _query_file(
                 metadata,
-                limit=config['bibmgr'].getint('max_query_results'),
-                mailto=config['bibmgr']['polite_pool_email'],
+                limit=config.getint('bibmgr', 'max_query_results'),
+                mailto=config.get('bibmgr', 'polite_pool_email'),
             )
         if entries:
             library.update_entry(new_key, entries[0].get_entry())
@@ -179,6 +217,8 @@ def _query_file(
     mailto: Optional[str] = None,
 ) -> Sequence[search.SearchResult]:
     """Query by file metadata."""
+    if not mailto:
+        log.warn('`mailto` not specified, not in Crossref polite pool.')
     # Check metadata
     if not metadata:
         return []
@@ -207,6 +247,8 @@ def _query_string(
     mailto: Optional[str] = None,
 ) -> Sequence[search.SearchResult]:
     """Query by file."""
+    if not mailto:
+        log.warn('`mailto` not specified, not in Crossref polite pool.')
     entries_crossref = search.query_crossref(query, limit=limit, mailto=mailto)
     entries_arxiv = search.query_arxiv(query, limit=limit)
     entries = list(entries_crossref) + list(entries_arxiv)

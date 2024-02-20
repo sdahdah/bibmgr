@@ -7,7 +7,6 @@ import pathlib
 import subprocess
 from typing import Optional, Sequence
 
-import bibtexparser
 import click
 
 from . import library_model, parse, search, utilities
@@ -152,14 +151,20 @@ def add(obj, files, key, query, skip_query):
                 mailto=config['bibmgr']['polite_pool_email'],
             )
         else:
-            entries = _query_file(
-                limit=config['bibmgr'].getint('max_query_results'),
-                mailto=config['bibmgr']['polite_pool_email'],
+            # Get metadata
+            metadata = parse.parse_pdf(
+                file,
                 max_pages=config['parsing'].getint('max_pages'),
                 max_lines=config['parsing'].getint('max_lines'),
                 min_words=config['parsing'].getint('min_words'),
                 max_words=config['parsing'].getint('max_words'),
                 max_chars=config['parsing'].getint('max_chars'),
+            )
+            # Query online based on metadata
+            entries = _query_file(
+                metadata,
+                limit=config['bibmgr'].getint('max_query_results'),
+                mailto=config['bibmgr']['polite_pool_email'],
             )
         if entries:
             library.update_entry(new_key, entries[0].get_entry())
@@ -169,25 +174,12 @@ def add(obj, files, key, query, skip_query):
 
 
 def _query_file(
-    path: pathlib.Path,
+    metadata: parse.Metadata,
     limit: int = 10,
     mailto: Optional[str] = None,
-    max_pages: int = 2,
-    max_lines: int = 4,
-    min_words: int = 2,
-    max_words: int = 30,
-    max_chars: int = 200,
 ) -> Sequence[search.SearchResult]:
-    """Query by file."""
-    # Get metadata
-    metadata = parse.parse_pdf(
-        path,
-        max_pages=max_pages,
-        max_lines=max_lines,
-        min_words=min_words,
-        max_words=max_words,
-        max_chars=max_chars,
-    )
+    """Query by file metadata."""
+    # Check metadata
     if not metadata:
         return []
     # Search by DOI first

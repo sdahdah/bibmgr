@@ -159,17 +159,20 @@ def _parse_pdf_metadata(path: pathlib.Path) -> Metadata:
         # Look for arXiv link in annotations of first page
         first_page = next(pdfminer.pdfpage.PDFPage.create_pages(doc))
         if first_page.annots:
-            for annotation in first_page.annots:
-                url_b = annotation.resolve().get('A', {}).get('URI', None)
-                if url_b is not None:
-                    url = url_b.decode('utf-8', errors='ignore')
-                    match_new = re.match(new_arxiv_name_re, url)
-                    if match_new is not None:
-                        id = match_new.group(1)
-                    else:
-                        id = None
-                    if (id is not None) and (metadata.arxiv_id is None):
-                        metadata.arxiv_id = id
+            try:
+                for annotation in first_page.annots:
+                    url_b = annotation.resolve().get('A', {}).get('URI', None)
+                    if url_b is not None:
+                        url = url_b.decode('utf-8', errors='ignore')
+                        match_new = re.match(new_arxiv_name_re, url)
+                        if match_new is not None:
+                            id = match_new.group(1)
+                        else:
+                            id = None
+                        if (id is not None) and (metadata.arxiv_id is None):
+                            metadata.arxiv_id = id
+            except TypeError:
+                pass
         parser.close()
     # Look for DOI or arXiv ID in metadata
     title = doc.info[0]['Title'].decode('utf-8', errors='ignore')

@@ -9,6 +9,7 @@ import pathlib
 import subprocess
 from typing import Optional, Sequence
 
+import bibtexparser
 import click
 
 from . import library_model, parse, search, utilities
@@ -152,7 +153,7 @@ def edit(obj):
     nargs=-1,
 )
 @click.option(
-    '-k',
+    '-K',
     '--key',
     type=str,
     default=None,
@@ -164,6 +165,13 @@ def edit(obj):
     type=str,
     default=None,
     help='Manually specified query. Only supported when adding one file.',
+)
+@click.option(
+    '-k',
+    '--keywords',
+    type=str,
+    default=None,
+    help='Keyword to apply to all added files',
 )
 @click.option(
     '-s',
@@ -178,11 +186,15 @@ def edit(obj):
     help='Run an interactive query.',
 )
 @click.pass_obj
-def add(obj, files, key, query, skip_query, interactive):
+def add(obj, files, key, query, keywords, skip_query, interactive):
     """Add linked files to BibTeX library."""
-    if query and (len(files) > 1):
-        log.info('Query unsupported when adding multiple files.')
-        return
+    if len(files) > 1:
+        if query:
+            log.info('Query unsupported when adding multiple files.')
+            return
+        if key:
+            log.info('Key unsupported when adding multiple files.')
+            return
     library = obj['library']
     config = obj['config']
     library.open()
@@ -226,9 +238,16 @@ def add(obj, files, key, query, skip_query, interactive):
                 sel = click.prompt('Selection', default=0)
         if entries:
             if (len(entries) > 1) and (sel < len(entries)) and interactive:
-                library.update_entry(new_key, entries[sel].get_entry())
+                selected_entry = entries[sel].get_entry()
             else:
-                library.update_entry(new_key, entries[0].get_entry())
+                selected_entry = entries[0].get_entry()
+            if keywords:
+                selected_entry.set_field(
+                    bibtexparser.model.Field(
+                        key='keywords',
+                        value=keywords,
+                    ))
+            library.update_entry(new_key, selected_entry)
     if not skip_query:
         library.organize()
     library.write_bib_file()

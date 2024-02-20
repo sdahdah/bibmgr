@@ -2,12 +2,16 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [project]
 name = "bibmgr"
 version = "0.0.1"
 dependencies = [
     "click >= 8.1.7, < 8.2",
     "bibtexparser >= 2.0.0b7, < 2.1",
+    "pdflu@git+https://github.com/sdahdah/pdflu.git#egg=pdflu",
 ]
 requires-python = ">=3.10, <3.13"
 authors = [

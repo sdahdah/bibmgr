@@ -1,6 +1,7 @@
 """Reference management tools for BibTeX."""
 
 # TODO Add command to look up existing key
+# TODO Print filename in ``add``
 
 import configparser
 import logging

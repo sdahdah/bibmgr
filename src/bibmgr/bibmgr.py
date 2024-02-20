@@ -11,8 +11,9 @@ from typing import Optional, Sequence
 
 import bibtexparser
 import click
+from pdflu import parse, search
 
-from . import library_model, parse, search, utilities
+from . import library_model, utilities
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -229,6 +230,7 @@ def add(obj, files, key, query, keywords, skip_query, interactive):
                 limit=config.getint('bibmgr', 'max_query_results'),
                 mailto=config.get('bibmgr', 'polite_pool_email'),
             )
+            sel = 0
             if interactive:
                 print('Results')
                 print('-------')

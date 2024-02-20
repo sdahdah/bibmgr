@@ -169,8 +169,14 @@ def edit(obj):
     is_flag=True,
     help='Skip online query and BibTeX reorganization.',
 )
+@click.option(
+    '-i',
+    '--interactive',
+    is_flag=True,
+    help='Run an interactive query.',
+)
 @click.pass_obj
-def add(obj, files, key, query, skip_query):
+def add(obj, files, key, query, skip_query, interactive):
     """Add linked files to BibTeX library."""
     if query and (len(files) > 1):
         log.info('Query unsupported when adding multiple files.')
@@ -198,14 +204,29 @@ def add(obj, files, key, query, skip_query):
                 max_words=config.getint('parsing', 'max_words'),
                 max_chars=config.getint('parsing', 'max_chars'),
             )
+            if interactive:
+                print('Metadata')
+                print('--------')
+                print(metadata)
+                print()
             # Query online based on metadata
             entries = _query_file(
                 metadata,
                 limit=config.getint('bibmgr', 'max_query_results'),
                 mailto=config.get('bibmgr', 'polite_pool_email'),
             )
+            if interactive:
+                print('Results')
+                print('-------')
+                for (k, result) in enumerate(entries):
+                    result_str = str(result).replace('\n', '\n    ')
+                    print(f'[{k}] {result_str}')
+                sel = click.prompt('Selection', default=0)
         if entries:
-            library.update_entry(new_key, entries[0].get_entry())
+            if (len(entries) > 1) and (sel < len(entries)) and interactive:
+                library.update_entry(new_key, entries[sel].get_entry())
+            else:
+                library.update_entry(new_key, entries[0].get_entry())
     if not skip_query:
         library.organize()
     library.write_bib_file()

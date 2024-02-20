@@ -4,7 +4,7 @@ import logging
 import pathlib
 import re
 import string
-from typing import Dict, Optional
+from typing import Optional
 
 import pdfminer.high_level
 import pdfminer.layout
@@ -46,12 +46,10 @@ class Metadata:
 
     def __repr__(self) -> str:
         """Represent ``Metadata`` as a string."""
-        return str({
-            'title': self.title,
-            'author': self.author,
-            'arxiv_id': self.arxiv_id,
-            'doi': self.doi,
-        })
+        return (f'Title:    {self.title}\n'
+                f'Author:   {self.author}\n'
+                f'arXiv ID: {self.arxiv_id}\n'
+                f'DOI:      {self.doi}')
 
 
 def parse_pdf(

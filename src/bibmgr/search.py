@@ -44,6 +44,17 @@ class SearchResult(object, metaclass=abc.ABCMeta):
         """Get BibTeX information from Crossref."""
         raise NotImplementedError()
 
+    def __repr__(self) -> str:
+        """Represent ``SearchResult`` as a string."""
+        out = []
+        if self.title:
+            out.append(self.title)
+        if self.author:
+            out.append(self.author)
+        if self.doi:
+            out.append(self.doi)
+        return '\n'.join(out)
+
 
 class CrossrefResult(SearchResult):
     """Crossref result."""

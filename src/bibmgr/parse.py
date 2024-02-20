@@ -148,7 +148,10 @@ def _parse_pdf_metadata(path: pathlib.Path) -> Metadata:
     metadata = Metadata()
     with open(path, 'rb') as f:
         parser = pdfminer.pdfparser.PDFParser(f)
-        doc = pdfminer.pdfdocument.PDFDocument(parser)
+        try:
+            doc = pdfminer.pdfdocument.PDFDocument(parser)
+        except pdfminer.pdfparser.PDFSyntaxError:
+            return Metadata()
         # Look for arXiv link in annotations of first page
         first_page = next(pdfminer.pdfpage.PDFPage.create_pages(doc))
         if first_page.annots:
@@ -224,70 +227,73 @@ def _parse_pdf_text(
     text_chunks = []
     text_sizes = []
     metadata = Metadata()
-    for page in pdfminer.high_level.extract_pages(path, maxpages=max_pages):
-        for element in page:
-            if isinstance(element, pdfminer.layout.LTTextContainer):
-                text = element.get_text()
-                # Match arXiv ID
-                match_new_arxiv_text = re.match(new_arxiv_text_re, text)
-                match_old_arxiv_text = re.match(old_arxiv_text_re, text)
-                if match_new_arxiv_text is not None:
-                    id = match_new_arxiv_text.group(1)
-                elif match_old_arxiv_text is not None:
-                    id = match_old_arxiv_text.group(1)
-                else:
-                    id = None
-                if (id is not None) and (metadata.arxiv_id is None):
-                    metadata.arxiv_id = id
-                # Match DOI
-                match_doi = re.match(doi_re, text, flags=re.IGNORECASE)
-                if (match_doi is not None) and (metadata.doi is None):
-                    metadata.doi = match_doi.group(1)
-                # Look for title
-                lines = text.count('\n')
-                if lines > max_lines:
-                    # If the element has too many lines, it's probably a
-                    # paragraph from the main body. Skip it.
-                    continue
-                else:
-                    # Remove all invalid characters
-                    valid_chars = (string.ascii_letters + string.digits +
-                                   string.punctuation + ' ' + '\n')
-                    text_ascii = ''.join(char for char in text
-                                         if char in valid_chars)
-                    # Replace all groups of whitespace characters with a single
-                    # space.
-                    text_stripped = re.sub(r'\s+', ' ', text_ascii).strip()
-                    # Count the number of words. Skip if there are too many
-                    # or too few.
-                    words = text_stripped.count(' ') + 1
-                    if words < min_words:
+    try:
+        pages = pdfminer.high_level.extract_pages(path, maxpages=max_pages)
+        for page in pages:
+            for element in page:
+                if isinstance(element, pdfminer.layout.LTTextContainer):
+                    text = element.get_text()
+                    # Match arXiv ID
+                    match_new_arxiv_text = re.match(new_arxiv_text_re, text)
+                    match_old_arxiv_text = re.match(old_arxiv_text_re, text)
+                    if match_new_arxiv_text is not None:
+                        id = match_new_arxiv_text.group(1)
+                    elif match_old_arxiv_text is not None:
+                        id = match_old_arxiv_text.group(1)
+                    else:
+                        id = None
+                    if (id is not None) and (metadata.arxiv_id is None):
+                        metadata.arxiv_id = id
+                    # Match DOI
+                    match_doi = re.match(doi_re, text, flags=re.IGNORECASE)
+                    if (match_doi is not None) and (metadata.doi is None):
+                        metadata.doi = match_doi.group(1)
+                    # Look for title
+                    lines = text.count('\n')
+                    if lines > max_lines:
+                        # If the element has too many lines, it's probably a
+                        # paragraph from the main body. Skip it.
                         continue
-                    if words > max_words:
-                        continue
-                    # Find size of second character in the string.
-                    # Skips the first in case there's a drop cap.
-                    first_char = True
-                    for text_line in element:
-                        if isinstance(text_line, pdfminer.layout.LTTextLine):
-                            for character in text_line:
-                                if isinstance(character,
-                                              pdfminer.layout.LTChar):
-                                    char_size = int(character.size)
-                                    if not first_char:
-                                        break
-                                    first_char = False
-                            break
-                    text_chunks.append(text_stripped)
-                    text_sizes.append(char_size)
-    # Throw out text boxes with font size under the threshold. Build query.
-    # Threshold is current just the max size
-    threshold_size = max(text_sizes)
-    query = ''
-    for chunk, size in zip(text_chunks, text_sizes):
-        if size >= threshold_size:
-            if len(query + ' ' + chunk) <= max_chars:
-                query += (' ' + chunk)
-    if metadata.title is None:
-        metadata.title = query.strip()
+                    else:
+                        # Remove all invalid characters
+                        valid_chars = (string.ascii_letters + string.digits +
+                                       string.punctuation + ' ' + '\n')
+                        text_ascii = ''.join(char for char in text
+                                             if char in valid_chars)
+                        # Replace all groups of whitespace characters with a
+                        # single space.
+                        text_stripped = re.sub(r'\s+', ' ', text_ascii).strip()
+                        # Count the number of words. Skip if there are too many
+                        # or too few.
+                        words = text_stripped.count(' ') + 1
+                        if words < min_words:
+                            continue
+                        if words > max_words:
+                            continue
+                        # Find size of second character in the string.
+                        # Skips the first in case there's a drop cap.
+                        first_char = True
+                        for line in element:
+                            if isinstance(line, pdfminer.layout.LTTextLine):
+                                for ch in line:
+                                    if isinstance(ch, pdfminer.layout.LTChar):
+                                        char_size = int(ch.size)
+                                        if not first_char:
+                                            break
+                                        first_char = False
+                                break
+                        text_chunks.append(text_stripped)
+                        text_sizes.append(char_size)
+        # Throw out text boxes with font size under the threshold. Build query.
+        # Threshold is current just the max size
+        threshold_size = max(text_sizes)
+        query = ''
+        for chunk, size in zip(text_chunks, text_sizes):
+            if size >= threshold_size:
+                if len(query + ' ' + chunk) <= max_chars:
+                    query += (' ' + chunk)
+        if metadata.title is None:
+            metadata.title = query.strip()
+    except pdfminer.pdfparser.PDFSyntaxError:
+        return Metadata()
     return metadata

@@ -117,28 +117,54 @@ def edit(obj):
     '--key',
     type=str,
     default=None,
-    help='',
+    help='Destination key for BibTeX entry.',
+)
+@click.option(
+    '-q',
+    '--query',
+    type=str,
+    default=None,
+    help='Manually specified query. Only supported when adding one file.',
+)
+@click.option(
+    '-s',
+    '--skip-query',
+    is_flag=True,
+    help='Skip online query and BibTeX reorganization.',
 )
 @click.pass_obj
-def add(obj, files, key):
+def add(obj, files, key, query, skip_query):
     """Add linked files to BibTeX library."""
-    # TODO Option to skip
+    if query and (len(files) > 1):
+        log.info('Query unsupported when adding multiple files.')
+        return
     library = obj['library']
     config = obj['config']
     library.open()
     for file in files:
         new_key = library.add_file(file, key)
-        entries = _query_file(
-            file,
-            max_pages=config['parsing'].getint('max_pages'),
-            max_lines=config['parsing'].getint('max_lines'),
-            min_words=config['parsing'].getint('min_words'),
-            max_words=config['parsing'].getint('max_words'),
-            max_chars=config['parsing'].getint('max_chars'),
-        )
+        if skip_query:
+            continue
+        if query:
+            entries = _query_string(
+                query,
+                limit=config['bibmgr'].getint('max_query_results'),
+                mailto=config['bibmgr']['polite_pool_email'],
+            )
+        else:
+            entries = _query_file(
+                limit=config['bibmgr'].getint('max_query_results'),
+                mailto=config['bibmgr']['polite_pool_email'],
+                max_pages=config['parsing'].getint('max_pages'),
+                max_lines=config['parsing'].getint('max_lines'),
+                min_words=config['parsing'].getint('min_words'),
+                max_words=config['parsing'].getint('max_words'),
+                max_chars=config['parsing'].getint('max_chars'),
+            )
         if entries:
             library.update_entry(new_key, entries[0].get_entry())
-    library.organize()
+    if not skip_query:
+        library.organize()
     library.write_bib_file()
 
 

@@ -162,6 +162,8 @@ def _query_file(
         max_words=max_words,
         max_chars=max_chars,
     )
+    if not metadata:
+        return []
     # Search by DOI first
     entries: Sequence[search.SearchResult]
     if metadata.doi:

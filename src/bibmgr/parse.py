@@ -38,7 +38,13 @@ class Metadata:
         self.arxiv_id = arxiv_id
         self.doi = doi
 
-    def __repr__(self):
+    def __bool__(self) -> bool:
+        """Represent ``Metadata`` as boolean."""
+        if self.title or self.author or self.arxiv_id or self.doi:
+            return True
+        return False
+
+    def __repr__(self) -> str:
         """Represent ``Metadata`` as a string."""
         return str({
             'title': self.title,

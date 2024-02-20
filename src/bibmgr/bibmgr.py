@@ -1,5 +1,7 @@
 """Reference management tools for BibTeX."""
 
+# TODO Add command to look up existing key
+
 import configparser
 import logging
 import os

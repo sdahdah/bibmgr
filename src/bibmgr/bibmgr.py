@@ -235,7 +235,15 @@ def add(obj, files, key, query, keywords, skip_query, interactive):
                 for (k, result) in enumerate(entries):
                     result_str = str(result).replace('\n', '\n    ')
                     print(f'[{k}] {result_str}')
-                sel = click.prompt('Selection', default=0)
+                print('[s] skip')
+                print('[q] quit')
+                sel_str = click.prompt('Selection', default='0')
+                if sel_str == 's':
+                    continue
+                elif sel_str == 'q':
+                    return
+                else:
+                    sel = int(sel_str)
         if entries:
             if (len(entries) > 1) and (sel < len(entries)) and interactive:
                 selected_entry = entries[sel].get_entry()

@@ -175,12 +175,18 @@ def _parse_pdf_metadata(path: pathlib.Path) -> Metadata:
                 pass
         parser.close()
     # Look for DOI or arXiv ID in metadata
-    title = doc.info[0]['Title'].decode('utf-8', errors='ignore')
-    if title != '':
-        metadata.title = title
-    author = doc.info[0]['Author'].decode('utf-8', errors='ignore')
-    if author != '':
-        metadata.author = author
+    try:
+        title = doc.info[0]['Title'].decode('utf-8', errors='ignore')
+        if title:
+            metadata.title = title
+    except KeyError:
+        pass
+    try:
+        author = doc.info[0]['Author'].decode('utf-8', errors='ignore')
+        if author:
+            metadata.author = author
+    except KeyError:
+        pass
     for key, value_b in doc.info[0].items():
         # Match arXiv ID
         value = value_b.decode('utf-8', errors='ignore')

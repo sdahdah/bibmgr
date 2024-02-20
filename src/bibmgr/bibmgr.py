@@ -238,6 +238,7 @@ def add(obj, files, key, query, keywords, skip_query, interactive):
                 print('[s] skip')
                 print('[q] quit')
                 sel_str = click.prompt('Selection', default='0')
+                print()
                 if sel_str == 's':
                     continue
                 elif sel_str == 'q':

@@ -107,7 +107,7 @@ class Library:
                     self._dry_run_msg(f'Creating `{group_path}`.')
                 else:
                     log.info(f'Creating `{group_path}`.')
-                    group_path.mkdir()
+                    group_path.mkdir(parents=True, exist_ok=True)
             else:
                 log.debug(
                     f'Directory `{group_path}` already exists. Skipping.')

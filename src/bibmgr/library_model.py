@@ -172,7 +172,7 @@ class Library:
                          'exists. Skipping.')
             else:
                 self._move_file(old_path, new_path)
-            entry['file'] = str(new_path)
+                entry['file'] = str(new_path)
 
     def move_according_to_bib(self) -> None:
         """Move files to group specified in BibTeX file."""

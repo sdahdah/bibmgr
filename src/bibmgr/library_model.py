@@ -203,7 +203,7 @@ class Library:
                          'exists in that location. Skipping.')
             else:
                 self._move_file(old_path, new_path)
-            entry['file'] = str(new_path)
+                entry['file'] = str(new_path)
 
     def rekey_according_to_bib(self) -> None:
         """Generate a new key for each entry in the BibTeX file.
